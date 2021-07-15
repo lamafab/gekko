@@ -20,8 +20,10 @@ enum MetadataVersion {
 }
 
 struct MetadataV13 {
-    modules: Vec<()>,
-    extrinsics: (),
+    // The magic number
+    prefix: String,
+    modules: Vec<ModuleMetadata>,
+    extrinsics: ExtrinsicMetadata,
 }
 
 pub struct ModuleMetadata {
@@ -34,8 +36,86 @@ pub struct ModuleMetadata {
     pub index: u8,
 }
 
-pub struct StorageMetadata {}
-pub struct FunctionMetadata {}
-pub struct EventMetadata {}
-pub struct ModuleConstantMetadata {}
-pub struct ErrorMetadata {}
+pub struct StorageMetadata {
+    prefix: String,
+    entries: Vec<StorageEntryMetadata>,
+}
+
+pub struct StorageEntryMetadata {
+    name: String,
+    modifier: StorageEntryModifier,
+    ty: StorageEntryType,
+    default: Vec<u8>,
+    documentation: Vec<String>,
+}
+
+pub enum StorageEntryModifier {
+    Optional,
+    Default,
+}
+
+pub enum StorageEntryType {
+    Plain(String),
+    Map {
+        hasher: StorageHasher,
+        key: String,
+        value: String,
+        unused: bool,
+    },
+    DoubleMap {
+        hasher: StorageHasher,
+        key1: String,
+        key2: String,
+        value: String,
+        key2_hasher: StorageHasher,
+    },
+    NMap {
+        keys: String,
+        hashers: Vec<StorageHasher>,
+        value: String,
+    },
+}
+
+pub enum StorageHasher {
+    Blake2_128,
+    Blake2_256,
+    Blake2_128Concat,
+    Twox128,
+    Twox256,
+    Twox64Concat,
+    Identity,
+}
+
+pub struct FunctionMetadata {
+    pub name: String,
+    pub arguments: Vec<FunctionArgumentMetadata>,
+    pub documentation: Vec<String>,
+}
+
+pub struct FunctionArgumentMetadata {
+    pub name: String,
+    pub ty: String,
+}
+
+pub struct EventMetadata {
+    pub name: String,
+    pub arguments: Vec<String>,
+    pub documentation: Vec<String>,
+}
+
+pub struct ModuleConstantMetadata {
+    pub name: String,
+    pub ty: String,
+    pub value: Vec<u8>,
+    pub documentation: Vec<String>,
+}
+
+pub struct ErrorMetadata {
+    pub name: String,
+    pub documentation: String,
+}
+
+pub struct ExtrinsicMetadata {
+    pub version: u8,
+    pub signed_extensions: Vec<String>,
+}

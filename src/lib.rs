@@ -16,6 +16,7 @@ pub enum Error {
     ParseJsonRpcMetadata(SerdeJsonError),
     ParseHexMetadata(hex::FromHexError),
     ParseRawMetadata(ScaleError),
+    InvalidMetadataVersion,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,10 +84,21 @@ pub enum MetadataVersion {
     V13(MetadataV13),
 }
 
+impl MetadataVersion {
+    /// Consumes the object and returns the inner metadata structure, expecting
+    /// the latest version. Results in an error if the version is not the latest.
+    pub fn into_latest(self) -> Result<MetadataV13> {
+        match self {
+            MetadataVersion::V13(data) => Ok(data),
+            _ => Err(Error::InvalidMetadataVersion),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct MetadataV13 {
-    modules: Vec<ModuleMetadata>,
-    extrinsics: ExtrinsicMetadata,
+    pub modules: Vec<ModuleMetadata>,
+    pub extrinsics: ExtrinsicMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -94,7 +106,7 @@ pub struct ModuleMetadata {
     pub name: String,
     pub storage: Option<StorageMetadata>,
     pub calls: Option<Vec<FunctionMetadata>>,
-    pub event: Option<Vec<EventMetadata>>,
+    pub events: Option<Vec<EventMetadata>>,
     pub constants: Vec<ModuleConstantMetadata>,
     pub errors: Vec<ErrorMetadata>,
     pub index: u8,
@@ -102,17 +114,17 @@ pub struct ModuleMetadata {
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct StorageMetadata {
-    prefix: String,
-    entries: Vec<StorageEntryMetadata>,
+    pub prefix: String,
+    pub entries: Vec<StorageEntryMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct StorageEntryMetadata {
-    name: String,
-    modifier: StorageEntryModifier,
-    ty: StorageEntryType,
-    default: Vec<u8>,
-    documentation: Vec<String>,
+    pub name: String,
+    pub modifier: StorageEntryModifier,
+    pub ty: StorageEntryType,
+    pub default: Vec<u8>,
+    pub documentation: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -200,5 +212,22 @@ fn parse_file() {
     use std::fs::read_to_string;
 
     let content = read_to_string("metadata_sample/metadata_polkadot_sv_9050_tv_7.json").unwrap();
-    let _ = parse_jsonrpc_metadata(content).unwrap();
+    let res = parse_jsonrpc_metadata(content).unwrap();
+
+    let data = match res {
+        MetadataVersion::V13(data) => data,
+        _ => panic!(),
+    };
+
+    for m in data.modules {
+        println!("> {}", m.name);
+        m.calls.map(|calls| {
+            for c in calls {
+                println!("  > {}", c.name);
+                for arg in c.arguments {
+                    println!("    > {}: {}", arg.name, arg.ty);
+                }
+            }
+        });
+    }
 }

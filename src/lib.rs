@@ -11,6 +11,8 @@ use serde_json::Error as SerdeJsonError;
 
 type Result<T> = std::result::Result<T, Error>;
 
+mod version;
+
 #[cfg(feature = "generator")]
 pub mod generator {
     pub use metadata_parser_generator::*;
@@ -86,13 +88,13 @@ pub enum MetadataVersion {
     V10,
     V11,
     V12,
-    V13(MetadataV13),
+    V13(version::MetadataV13),
 }
 
 impl MetadataVersion {
     /// Consumes the object and returns the inner metadata structure, expecting
     /// the latest version. Results in an error if the version is not the latest.
-    pub fn into_latest(self) -> Result<MetadataV13> {
+    pub fn into_latest(self) -> Result<version::MetadataV13> {
         match self {
             MetadataVersion::V13(data) => Ok(data),
             _ => Err(Error::InvalidMetadataVersion),
@@ -115,122 +117,10 @@ impl MetadataVersion {
             V9 => 9,
             V10 => 10,
             V11 => 11,
-            V12=> 12,
+            V12 => 12,
             V13(_) => 13,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct MetadataV13 {
-    pub modules: Vec<ModuleMetadata>,
-    pub extrinsics: ExtrinsicMetadata,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct ModuleMetadata {
-    pub name: String,
-    pub storage: Option<StorageMetadata>,
-    pub calls: Option<Vec<FunctionMetadata>>,
-    pub events: Option<Vec<EventMetadata>>,
-    pub constants: Vec<ModuleConstantMetadata>,
-    pub errors: Vec<ErrorMetadata>,
-    pub index: u8,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct StorageMetadata {
-    pub prefix: String,
-    pub entries: Vec<StorageEntryMetadata>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct StorageEntryMetadata {
-    pub name: String,
-    pub modifier: StorageEntryModifier,
-    pub ty: StorageEntryType,
-    pub default: Vec<u8>,
-    pub documentation: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub enum StorageEntryModifier {
-    Optional,
-    Default,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub enum StorageEntryType {
-    Plain(String),
-    Map {
-        hasher: StorageHasher,
-        key: String,
-        value: String,
-        unused: bool,
-    },
-    DoubleMap {
-        hasher: StorageHasher,
-        key1: String,
-        key2: String,
-        value: String,
-        key2_hasher: StorageHasher,
-    },
-    NMap {
-        keys: String,
-        hashers: Vec<StorageHasher>,
-        value: String,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub enum StorageHasher {
-    Blake2_128,
-    Blake2_256,
-    Blake2_128Concat,
-    Twox128,
-    Twox256,
-    Twox64Concat,
-    Identity,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct FunctionMetadata {
-    pub name: String,
-    pub arguments: Vec<FunctionArgumentMetadata>,
-    pub documentation: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct FunctionArgumentMetadata {
-    pub name: String,
-    pub ty: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct EventMetadata {
-    pub name: String,
-    pub arguments: Vec<String>,
-    pub documentation: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct ModuleConstantMetadata {
-    pub name: String,
-    pub ty: String,
-    pub value: Vec<u8>,
-    pub documentation: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct ErrorMetadata {
-    pub name: String,
-    pub documentation: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct ExtrinsicMetadata {
-    pub version: u8,
-    pub signed_extensions: Vec<String>,
 }
 
 #[test]

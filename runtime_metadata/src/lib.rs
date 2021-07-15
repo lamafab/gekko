@@ -6,6 +6,7 @@ extern crate serde;
 #[macro_use]
 extern crate parity_scale_codec;
 
+use self::version::*;
 use parity_scale_codec::{Decode, Error as ScaleError};
 use serde_json::Error as SerdeJsonError;
 
@@ -88,13 +89,13 @@ pub enum MetadataVersion {
     V10,
     V11,
     V12,
-    V13(version::MetadataV13),
+    V13(MetadataV13),
 }
 
 impl MetadataVersion {
     /// Consumes the object and returns the inner metadata structure, expecting
     /// the latest version. Results in an error if the version is not the latest.
-    pub fn into_latest(self) -> Result<version::MetadataV13> {
+    pub fn into_latest(self) -> Result<MetadataV13> {
         match self {
             MetadataVersion::V13(data) => Ok(data),
             _ => Err(Error::InvalidMetadataVersion),

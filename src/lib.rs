@@ -3,7 +3,7 @@ extern crate serde;
 #[macro_use]
 extern crate parity_scale_codec;
 
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Error as ScaleError};
 use serde_json::Error as SerdeJsonError;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -11,6 +11,7 @@ type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     ParseJsonRpcMetadata(SerdeJsonError),
     ParseHexMetadata(hex::FromHexError),
+    ParseRawMetadata(ScaleError),
 }
 
 // INFO: The earliest metadata versions are available in the substrate repo at commit: a31c01b398d958ccf0a24d8c1c11fb073df66212
@@ -38,7 +39,8 @@ pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
 }
 
 pub fn parse_raw_metadata<T: AsRef<[u8]>>(mut raw: T) -> Result<MetadataVersion> {
-    Ok(MetadataVersion::decode(&mut raw.as_ref()[MAGIC_NUMBER.len()..].as_ref()).unwrap())
+    MetadataVersion::decode(&mut raw.as_ref()[MAGIC_NUMBER.len()..].as_ref())
+        .map_err(|err| Error::ParseRawMetadata(err))
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]

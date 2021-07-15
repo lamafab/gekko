@@ -48,9 +48,10 @@ pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
 pub fn parse_raw_metadata<T: AsRef<[u8]>>(raw: T) -> Result<MetadataVersion> {
     let raw = raw.as_ref();
 
-    // Remove the magic number ('meta' = 0x6d657461) before decoding, if it exists.
+    // Remove the magic number before decoding, if it exists.
     // From the substrate docs:
-    // > The magic number that is prefixed in the runtime metadata returned by JSON-RPC `state_getMetadata`.
+    // > "The hex blob that is returned by the JSON-RPCs state_getMetadata method starts with a hard-coded
+    // > magic number, 0x6d657461, which represents "meta" in plain text."
     let mut slice = if raw.starts_with(b"meta") {
         raw[4..].as_ref()
     } else {
@@ -90,7 +91,7 @@ pub struct ModuleMetadata {
     pub storage: Option<StorageMetadata>,
     pub calls: Option<Vec<FunctionMetadata>>,
     pub event: Option<Vec<EventMetadata>>,
-    pub constants: ModuleConstantMetadata,
+    pub constants: Vec<ModuleConstantMetadata>,
     pub errors: Vec<ErrorMetadata>,
     pub index: u8,
 }
@@ -181,7 +182,7 @@ pub struct ModuleConstantMetadata {
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct ErrorMetadata {
     pub name: String,
-    pub documentation: String,
+    pub documentation: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]

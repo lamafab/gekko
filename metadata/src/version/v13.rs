@@ -1,3 +1,5 @@
+use crate::{ExtrinsicInfo, ModuleMetadataExt, Result};
+
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct MetadataV13 {
     pub modules: Vec<ModuleMetadata>,
@@ -108,4 +110,44 @@ pub struct ErrorMetadata {
 pub struct ExtrinsicMetadata {
     pub version: u8,
     pub signed_extensions: Vec<String>,
+}
+
+impl ModuleMetadataExt for MetadataV13 {
+    fn modules_extrinsics<'a>(&'a self) -> Result<Vec<ExtrinsicInfo<'a>>> {
+        let infos = self
+            .modules
+            .iter()
+            .enumerate()
+            .map(|(module_id, mod_meta)| {
+                mod_meta
+                    .calls
+                    .as_ref()
+                    .map(|funcs_meta| {
+                        funcs_meta
+                            .iter()
+                            .enumerate()
+                            .map(|(dispatch_id, func_meta)| ExtrinsicInfo {
+                                module_id: module_id,
+                                dispatch_id: dispatch_id,
+                                name: func_meta.name.as_str(),
+                                args: func_meta
+                                    .arguments
+                                    .iter()
+                                    .map(|arg_meta| (arg_meta.name.as_str(), arg_meta.ty.as_str()))
+                                    .collect(),
+                                documentation: func_meta
+                                    .documentation
+                                    .iter()
+                                    .map(|s| s.as_str())
+                                    .collect(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or(vec![])
+            })
+            .flatten()
+            .collect();
+
+        Ok(infos)
+    }
 }

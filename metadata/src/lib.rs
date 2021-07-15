@@ -14,9 +14,16 @@ type Result<T> = std::result::Result<T, Error>;
 
 mod version;
 
-#[cfg(feature = "generator")]
-pub mod generator {
-    pub use metadata_parser_generator::*;
+pub struct ExtrinsicInfo<'a> {
+    pub module_id: usize,
+    pub dispatch_id: usize,
+    pub name: &'a str,
+    pub args: Vec<(&'a str, &'a str)>,
+    pub documentation: Vec<&'a str>,
+}
+
+pub trait ModuleMetadataExt {
+    fn modules_extrinsics<'a>(&'a self) -> Result<Vec<ExtrinsicInfo<'a>>>;
 }
 
 #[derive(Debug)]
@@ -128,7 +135,7 @@ impl MetadataVersion {
 fn parse_file() {
     use std::fs::read_to_string;
 
-    let content = read_to_string("metadata_sample/metadata_polkadot_sv_9050_tv_7.json").unwrap();
+    let content = read_to_string("dumps/metadata_polkadot_9050.json").unwrap();
     let res = parse_jsonrpc_metadata(content).unwrap();
 
     let data = match res {

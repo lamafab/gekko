@@ -1,4 +1,5 @@
-// INFO: The earliest metadata versions are available in the substrate repo at commit: a31c01b398d958ccf0a24d8c1c11fb073df66212
+// INFO: The earliest metadata versions are available in the substrate repo at
+// commit: a31c01b398d958ccf0a24d8c1c11fb073df66212
 
 #[macro_use]
 extern crate serde;
@@ -23,7 +24,8 @@ pub struct JsonRpcResponse {
     pub result: String,
 }
 
-// Convenience function for parsing the Json RPC response returned by `state_getMetadata`. Must fit the [`JsonRpcResponse`] structure.
+// Convenience function for parsing the Json RPC response returned by
+// `state_getMetadata`. Must fit the [`JsonRpcResponse`] structure.
 pub fn parse_jsonrpc_metadata<T: AsRef<[u8]>>(json: T) -> Result<MetadataVersion> {
     let resp = serde_json::from_slice::<JsonRpcResponse>(json.as_ref())
         .map_err(|err| Error::ParseJsonRpcMetadata(err))?;
@@ -31,7 +33,8 @@ pub fn parse_jsonrpc_metadata<T: AsRef<[u8]>>(json: T) -> Result<MetadataVersion
     parse_hex_metadata(resp.result.as_bytes())
 }
 
-// Convenience function for parsing the metadata from a HEX representation, as returned by `state_getMetadata`.
+// Convenience function for parsing the metadata from a HEX representation, as
+// returned by `state_getMetadata`.
 pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
     let hex = hex.as_ref();
 
@@ -48,10 +51,11 @@ pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
 pub fn parse_raw_metadata<T: AsRef<[u8]>>(raw: T) -> Result<MetadataVersion> {
     let raw = raw.as_ref();
 
-    // Remove the magic number before decoding, if it exists.
-    // From the substrate docs:
-    // > "The hex blob that is returned by the JSON-RPCs state_getMetadata method starts with a hard-coded
-    // > magic number, 0x6d657461, which represents "meta" in plain text."
+    // Remove the magic number before decoding, if it exists. From the substrate
+    // docs:
+    // > "The hex blob that is returned by the JSON-RPCs state_getMetadata
+    // > method starts with a hard-coded magic number, 0x6d657461, which
+    // > represents "meta" in plain text."
     let mut slice = if raw.starts_with(b"meta") {
         raw[4..].as_ref()
     } else {

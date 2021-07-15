@@ -8,6 +8,7 @@ use serde_json::Error as SerdeJsonError;
 
 type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug)]
 pub enum Error {
     ParseJsonRpcMetadata(SerdeJsonError),
     ParseHexMetadata(hex::FromHexError),
@@ -30,30 +31,47 @@ pub fn parse_jsonrpc_metadata<T: AsRef<[u8]>>(json: T) -> Result<MetadataVersion
     let resp = serde_json::from_slice::<JsonRpcResponse>(json.as_ref())
         .map_err(|err| Error::ParseJsonRpcMetadata(err))?;
 
-    parse_raw_metadata(resp.result.as_bytes())
+    parse_hex_metadata(resp.result.as_bytes())
 }
 
 // Convenience function for parsing the metadata from a HEX representation, as returned by `state_getMetadata`.
 pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
-    parse_raw_metadata(hex::decode(hex).map_err(|err| Error::ParseHexMetadata(err))?)
+    let hex = hex.as_ref();
+
+    // The `hex` crate does not handle `0x`...
+    let slice = if hex.starts_with(b"0x") {
+        hex[2..].as_ref()
+    } else {
+        hex
+    };
+
+    parse_raw_metadata(hex::decode(slice).map_err(|err| Error::ParseHexMetadata(err))?)
 }
 
-pub fn parse_raw_metadata<T: AsRef<[u8]>>(mut raw: T) -> Result<MetadataVersion> {
-    MetadataVersion::decode(&mut raw.as_ref()[MAGIC_NUMBER.len()..].as_ref())
-        .map_err(|err| Error::ParseRawMetadata(err))
+pub fn parse_raw_metadata<T: AsRef<[u8]>>(raw: T) -> Result<MetadataVersion> {
+    let raw = raw.as_ref();
+
+    let mut slice = if raw.starts_with(MAGIC_NUMBER.as_bytes()) {
+        raw[MAGIC_NUMBER.as_bytes().len()..].as_ref()
+    } else {
+        raw
+    };
+
+    MetadataVersion::decode(&mut slice).map_err(|err| Error::ParseRawMetadata(err))
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum MetadataVersion {
-    V01,
-    V02,
-    V03,
-    V04,
-    V05,
-    V06,
-    V07,
-    V08,
-    V09,
+    V0,
+    V1,
+    V2,
+    V3,
+    V4,
+    V5,
+    V6,
+    V7,
+    V8,
+    V9,
     V10,
     V11,
     V12,
@@ -62,8 +80,6 @@ pub enum MetadataVersion {
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct MetadataV13 {
-    // The magic number
-    prefix: String,
     modules: Vec<ModuleMetadata>,
     extrinsics: ExtrinsicMetadata,
 }
@@ -172,4 +188,12 @@ pub struct ErrorMetadata {
 pub struct ExtrinsicMetadata {
     pub version: u8,
     pub signed_extensions: Vec<String>,
+}
+
+#[test]
+fn parse_file() {
+    use std::fs::read_to_string;
+
+    let content = read_to_string("metadata_sample/metadata_polkadot_sv_9050_tv_7.json").unwrap();
+    let _ = parse_jsonrpc_metadata(content).unwrap();
 }

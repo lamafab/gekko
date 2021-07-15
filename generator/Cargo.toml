@@ -1,5 +1,5 @@
 [package]
-name = "metadata-parser-generator"
+name = "project-x-generator"
 version = "0.1.0"
 edition = "2018"
 

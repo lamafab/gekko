@@ -24,6 +24,11 @@ pub struct ExtrinsicInfo<'a> {
 
 pub trait ModuleMetadataExt {
     fn modules_extrinsics<'a>(&'a self) -> Result<Vec<ExtrinsicInfo<'a>>>;
+    fn find_module_extrinsic<'a>(
+        &'a self,
+        method: &str,
+        extrinsic: &str,
+    ) -> Result<Option<ExtrinsicInfo<'a>>>;
 }
 
 #[derive(Debug)]

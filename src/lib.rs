@@ -1,3 +1,5 @@
+// INFO: The earliest metadata versions are available in the substrate repo at commit: a31c01b398d958ccf0a24d8c1c11fb073df66212
+
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -14,11 +16,6 @@ pub enum Error {
     ParseHexMetadata(hex::FromHexError),
     ParseRawMetadata(ScaleError),
 }
-
-// INFO: The earliest metadata versions are available in the substrate repo at commit: a31c01b398d958ccf0a24d8c1c11fb073df66212
-
-// The magic number that is prefixed in the runtime metadata returned by JSON-RPC `state_getMetadata`. 'meta' = 0x6d657461.
-const MAGIC_NUMBER: &'static str = "meta";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct JsonRpcResponse {
@@ -51,8 +48,11 @@ pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
 pub fn parse_raw_metadata<T: AsRef<[u8]>>(raw: T) -> Result<MetadataVersion> {
     let raw = raw.as_ref();
 
-    let mut slice = if raw.starts_with(MAGIC_NUMBER.as_bytes()) {
-        raw[MAGIC_NUMBER.as_bytes().len()..].as_ref()
+    // Remove the magic number ('meta' = 0x6d657461) before decoding, if it exists.
+    // From the substrate docs:
+    // > The magic number that is prefixed in the runtime metadata returned by JSON-RPC `state_getMetadata`.
+    let mut slice = if raw.starts_with(b"meta") {
+        raw[4..].as_ref()
     } else {
         raw
     };

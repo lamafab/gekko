@@ -78,7 +78,11 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         // Prepare types.
         let generics: syn::Generics = syn::parse_str(&generics).unwrap();
         let ext_name = format_ident!("{}", Casing::to_case(ext.extrinsic_name, Case::Pascal));
-        let ext_comments = ext.documentation;
+        let ext_comments: Vec<String> = ext
+            .documentation
+            .iter()
+            .map(|doc| doc.replace("[`", "`").replace("`]", "`"))
+            .collect();
 
         // Create struct fields.
         let ext_args = ext
@@ -91,42 +95,56 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
                 let ty = format_ident!("{}", char::from_u32(65 + offset as u32).unwrap());
                 quote! {
                     #[doc = #msg]
-                    #name: #ty,
+                    pub #name: #ty,
                 }
             });
 
-        // Build the final type.
-        let msg1 = "*Note*: This library makes no assumptions about parameter types and must be specified \
+        // Prepare documentation for type.
+        let disclaimer = "# Type Disclaimer\nThis library makes no assumptions about parameter types and must be specified \
         manually as generic types. Each field contains type descriptions, as \
         provided by the runtime meatadata. See the `common` module for common types which can be used.\n";
 
-        let msg2 = "# Documentation as provided by the runtime metadata";
+        let docs = if !ext_comments.is_empty() {
+            let intro = ext_comments.iter().nth(0).unwrap();
+            let msg = "# Documentation (provided by the runtime metadata)";
 
-        // TODO: Handle case of missing documentation?
-        let ty_parent: TokenStream = quote! {
-            #[doc = #msg1]
-            #[doc = #msg2]
-            #(#[doc = #ext_comments])*
+            quote! {
+                #[doc = #intro]
+                #[doc = #msg]
+                #(#[doc = #ext_comments])*
+            }
+        } else {
+            let msg = "No documentation provided by the runtime metadata";
+            quote! {
+                #[doc = #msg]
+            }
+        };
+
+        // Build the final type.
+        let type_stream: TokenStream = quote! {
+            #docs
+            #[doc = #disclaimer]
             pub struct #ext_name #generics {
                 #(#ext_args)*
             }
         };
 
-        println!("{}", ty_parent.to_string());
-
         // Add created type to the corresponding module.
         modules
-            .entry(format_ident!("{}", ext.module_name))
+            .entry(format_ident!(
+                "{}",
+                Casing::to_case(ext.module_name, Case::Snake)
+            ))
             .and_modify(|stream| {
-                stream.extend(ty_parent.clone());
+                stream.extend(type_stream.clone());
             })
-            .or_insert(ty_parent);
+            .or_insert(type_stream);
     }
 
     // Add all modules to the final stream.
     modules.iter().for_each(|(module, stream)| {
         let stream: TokenStream = quote! {
-            mod #module {
+            pub mod #module {
                 #stream
             }
         };

@@ -2,6 +2,7 @@ use convert_case::{Case, Casing};
 use proc_macro::{TokenStream, TokenTree};
 use project_x_metadata::{parse_jsonrpc_metadata, ModuleMetadataExt};
 use quote::{format_ident, quote};
+use std::collections::HashMap;
 use std::fs::read_to_string;
 
 #[proc_macro_attribute]
@@ -69,7 +70,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
 
         // Prepare types.
         let generics: syn::Generics = syn::parse_str(&generics).unwrap();
-        let ext_name = format_ident!("{}", Casing::to_case(ext.name, Case::Pascal));
+        let ext_name = format_ident!("{}", Casing::to_case(ext.extrinsic_name, Case::Pascal));
 
         // Create struct fields.
         let ext_args = ext

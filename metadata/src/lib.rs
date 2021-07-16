@@ -17,7 +17,8 @@ mod version;
 pub struct ExtrinsicInfo<'a> {
     pub module_id: usize,
     pub dispatch_id: usize,
-    pub name: &'a str,
+    pub module_name: &'a str,
+    pub extrinsic_name: &'a str,
     pub args: Vec<(&'a str, &'a str)>,
     pub documentation: Vec<&'a str>,
 }

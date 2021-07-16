@@ -84,11 +84,13 @@ impl FunctionMetadata {
         &'a self,
         module_id: usize,
         dispatch_id: usize,
+        module_name: &'a str,
     ) -> ExtrinsicInfo<'a> {
         ExtrinsicInfo {
             module_id: module_id,
             dispatch_id: dispatch_id,
-            name: self.name.as_str(),
+            module_name: module_name,
+            extrinsic_name: self.name.as_str(),
             args: self
                 .arguments
                 .iter()
@@ -146,7 +148,11 @@ impl ModuleMetadataExt for MetadataV13 {
                             .iter()
                             .enumerate()
                             .map(|(dispatch_id, func_meta)| {
-                                func_meta.to_extrinsic_info(module_id, dispatch_id)
+                                func_meta.to_extrinsic_info(
+                                    module_id,
+                                    dispatch_id,
+                                    mod_meta.name.as_str(),
+                                )
                             })
                             .collect()
                     })
@@ -172,7 +178,11 @@ impl ModuleMetadataExt for MetadataV13 {
                         .enumerate()
                         .find(|(_, func_meta)| func_meta.name.as_str() == extrinsic)
                         .map(|(dispatch_id, func_meta)| {
-                            func_meta.to_extrinsic_info(module_id, dispatch_id)
+                            func_meta.to_extrinsic_info(
+                                module_id,
+                                dispatch_id,
+                                mod_meta.name.as_str(),
+                            )
                         })
                 })
             })

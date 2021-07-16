@@ -78,6 +78,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         // Prepare types.
         let generics: syn::Generics = syn::parse_str(&generics).unwrap();
         let ext_name = format_ident!("{}", Casing::to_case(ext.extrinsic_name, Case::Pascal));
+        let ext_comments = ext.documentation;
 
         // Create struct fields.
         let ext_args = ext
@@ -95,7 +96,17 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
             });
 
         // Build the final type.
+        let msg1 = "*Note*: This library makes no assumptions about parameter types and must be specified \
+        manually as generic types. Each field contains type descriptions, as \
+        provided by the runtime meatadata. See the `common` module for common types which can be used.\n";
+
+        let msg2 = "# Documentation as provided by the runtime metadata";
+
+        // TODO: Handle case of missing documentation?
         let ty_parent: TokenStream = quote! {
+            #[doc = #msg1]
+            #[doc = #msg2]
+            #(#[doc = #ext_comments])*
             pub struct #ext_name #generics {
                 #(#ext_args)*
             }

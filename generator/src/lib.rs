@@ -48,7 +48,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         .unwrap()
         .into_inner();
 
-    let mut final_stream = TokenStream::new();
+    let mut final_extrinsics = TokenStream::new();
     let mut modules: HashMap<syn::Ident, TokenStream> = HashMap::new();
     let extrinsics = data.modules_extrinsics();
 
@@ -123,6 +123,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         let type_stream: TokenStream = quote! {
             #docs
             #[doc = #disclaimer]
+            #[derive(Debug, Clone, Eq, PartialEq)]
             pub struct #ext_name #generics {
                 #(#ext_args)*
             }
@@ -148,8 +149,21 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
             }
         };
 
-        final_stream.extend(stream);
+        final_extrinsics.extend(stream);
     });
 
-    final_stream
+    quote! {
+        pub mod extrinsics {
+            #final_extrinsics
+        }
+
+        /// TODO
+        pub mod storage {}
+        /// TODO
+        pub mod events {}
+        /// TODO
+        pub mod constants {}
+        /// TODO
+        pub mod errors {}
+    }
 }

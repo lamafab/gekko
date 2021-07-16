@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 project-x-generator = { version = "0.1.0", path = "../generator" }
 project-x-metadata = { version = "0.1.0", path = "../metadata", optional = true }
+parity-scale-codec = { version = "2.2.0", features = ["derive"] }
 
 [features]
 generator = []

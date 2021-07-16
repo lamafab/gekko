@@ -23,7 +23,7 @@ pub struct ExtrinsicInfo<'a> {
 }
 
 pub trait ModuleMetadataExt {
-    fn modules_extrinsics<'a>(&'a self) -> Result<Vec<ExtrinsicInfo<'a>>>;
+    fn modules_extrinsics<'a>(&'a self) -> Vec<ExtrinsicInfo<'a>>;
     fn find_module_extrinsic<'a>(
         &'a self,
         method: &str,
@@ -132,6 +132,12 @@ impl MetadataVersion {
             V11 => 11,
             V12 => 12,
             V13(_) => 13,
+        }
+    }
+    pub fn into_inner(self) -> impl ModuleMetadataExt {
+        match self {
+            MetadataVersion::V13(m) => m,
+            _ => panic!(),
         }
     }
 }

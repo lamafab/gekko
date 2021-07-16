@@ -133,9 +133,8 @@ pub struct ExtrinsicMetadata {
 }
 
 impl ModuleMetadataExt for MetadataV13 {
-    fn modules_extrinsics<'a>(&'a self) -> Result<Vec<ExtrinsicInfo<'a>>> {
-        let infos = self
-            .modules
+    fn modules_extrinsics<'a>(&'a self) -> Vec<ExtrinsicInfo<'a>> {
+        self.modules
             .iter()
             .enumerate()
             .map(|(module_id, mod_meta)| {
@@ -154,9 +153,7 @@ impl ModuleMetadataExt for MetadataV13 {
                     .unwrap_or(vec![])
             })
             .flatten()
-            .collect();
-
-        Ok(infos)
+            .collect()
     }
     fn find_module_extrinsic<'a>(
         &'a self,

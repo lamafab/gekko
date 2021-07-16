@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fs::read_to_string;
 
 #[proc_macro_attribute]
-pub fn from_file(
+pub fn parse_from_file(
     args: proc_macro::TokenStream,
     _: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {

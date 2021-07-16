@@ -23,7 +23,6 @@ pub fn parse_from_file(
     };
 
     let path = path.replace("\"", "");
-    println!(">> {}", path);
 
     // Read content from file.
     let content = read_to_string(&path).expect(&format!(
@@ -102,7 +101,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         // Prepare documentation for type.
         let disclaimer = "# Type Disclaimer\nThis library makes no assumptions about parameter types and must be specified \
         manually as generic types. Each field contains type descriptions, as \
-        provided by the runtime meatadata. See the `common` module for common types which can be used.\n";
+        provided by the runtime meatadata. See the [`common`](crate::common) module for common types which can be used.\n";
 
         let docs = if !ext_comments.is_empty() {
             let intro = ext_comments.iter().nth(0).unwrap();

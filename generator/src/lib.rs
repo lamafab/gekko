@@ -1,3 +1,4 @@
+use convert_case::{Case, Casing};
 use proc_macro::{TokenStream, TokenTree};
 use project_x_metadata::{parse_jsonrpc_metadata, ModuleMetadataExt};
 use quote::{format_ident, quote};
@@ -50,23 +51,25 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         };
 
         // Create generics, assuming there any. E.g. `<A, B, C>`
-        let mut generics = format!(
-            "<{}>",
-            ext.args
+        let mut generics = format!("<{}>", {
+            let mut generics = ext
+                .args
                 .iter()
                 .enumerate()
                 .map(|(offset, _)| char::from_u32(65 + offset as u32).unwrap())
-                .fold(String::new(), |a, b| format!("{}, {}", a, b))
-        );
+                .fold(String::new(), |a, b| format!("{}, {}", a, b));
 
-        // Remove first comma, assuming generics are present.
-        if !generics.is_empty() {
-            generics.remove(0);
-        }
+            // Remove first comma, assuming generics are present.
+            if !generics.is_empty() {
+                generics.remove(0);
+            }
+
+            generics
+        });
 
         // Prepare types.
         let generics: syn::Generics = syn::parse_str(&generics).unwrap();
-        let ext_name = format_ident!("{}", ext.name);
+        let ext_name = format_ident!("{}", Casing::to_case(ext.name, Case::Pascal));
 
         // Create struct fields.
         let ext_args = ext
@@ -95,6 +98,5 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         full.extend(ty_parent);
     }
 
-    //full
-    unimplemented!()
+    full
 }

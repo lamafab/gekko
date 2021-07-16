@@ -1,12 +1,16 @@
 use convert_case::{Case, Casing};
-use proc_macro::{TokenStream, TokenTree};
+use proc_macro::TokenTree;
+use proc_macro2::TokenStream;
 use project_x_metadata::{parse_jsonrpc_metadata, ModuleMetadataExt};
 use quote::{format_ident, quote};
 use std::collections::HashMap;
 use std::fs::read_to_string;
 
 #[proc_macro_attribute]
-pub fn from_file(args: TokenStream, _: TokenStream) -> TokenStream {
+pub fn from_file(
+    args: proc_macro::TokenStream,
+    _: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     // Extract path.
     let tree = args
         .into_iter()
@@ -27,11 +31,14 @@ pub fn from_file(args: TokenStream, _: TokenStream) -> TokenStream {
         path
     ));
 
-    process_runtime_metadata(content.as_str())
+    process_runtime_metadata(content.as_str()).into()
 }
 
 #[proc_macro_attribute]
-pub fn from_rpc_endpoint(_args: TokenStream, _: TokenStream) -> TokenStream {
+pub fn from_rpc_endpoint(
+    _args: proc_macro::TokenStream,
+    _: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     unimplemented!()
 }
 
@@ -42,9 +49,9 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         .unwrap()
         .into_inner();
 
+    let mut final_stream = TokenStream::new();
+    let mut modules: HashMap<syn::Ident, TokenStream> = HashMap::new();
     let extrinsics = data.modules_extrinsics();
-
-    let mut full = TokenStream::new();
 
     for ext in extrinsics {
         if ext.args.len() > 25 {
@@ -52,7 +59,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         };
 
         // Create generics, assuming there any. E.g. `<A, B, C>`
-        let mut generics = format!("<{}>", {
+        let generics = format!("<{}>", {
             let mut generics = ext
                 .args
                 .iter()
@@ -92,12 +99,29 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
             pub struct #ext_name #generics {
                 #(#ext_args)*
             }
-        }
-        .into();
+        };
 
         println!("{}", ty_parent.to_string());
-        full.extend(ty_parent);
+
+        // Add created type to the corresponding module.
+        modules
+            .entry(format_ident!("{}", ext.module_name))
+            .and_modify(|stream| {
+                stream.extend(ty_parent.clone());
+            })
+            .or_insert(ty_parent);
     }
 
-    full
+    // Add all modules to the final stream.
+    modules.iter().for_each(|(module, stream)| {
+        let stream: TokenStream = quote! {
+            mod #module {
+                #stream
+            }
+        };
+
+        final_stream.extend(stream);
+    });
+
+    final_stream
 }

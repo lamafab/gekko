@@ -10,4 +10,5 @@ proc-macro = true
 project-x-metadata = { version = "0.1.0", path = "../metadata" }
 quote = "1.0.9"
 syn = "1.0.73"
+proc-macro2 = "1.0.27"
 convert_case = "0.4.0"

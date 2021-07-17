@@ -58,12 +58,16 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         };
 
         // Create generics, assuming there any. E.g. `<A, B, C>`
-        let generics = format!("<{}>", {
-            let mut generics = ext
-                .args
+        let generics: Vec<String> = ext
+            .args
+            .iter()
+            .enumerate()
+            .map(|(offset, _)| char::from_u32(65 + offset as u32).unwrap().into())
+            .collect();
+
+        let generics_wrapped = format!("<{}>", {
+            let mut generics = generics
                 .iter()
-                .enumerate()
-                .map(|(offset, _)| char::from_u32(65 + offset as u32).unwrap())
                 .fold(String::new(), |a, b| format!("{}, {}", a, b));
 
             // Remove first comma, assuming generics are present.
@@ -75,7 +79,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         });
 
         // Prepare types.
-        let generics: syn::Generics = syn::parse_str(&generics).unwrap();
+        let generics_wrapped: syn::Generics = syn::parse_str(&generics_wrapped).unwrap();
         let ext_name = format_ident!("{}", Casing::to_case(ext.extrinsic_name, Case::Pascal));
         let ext_comments: Vec<String> = ext
             .documentation
@@ -120,11 +124,16 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         };
 
         // Build the final type.
+        let generics_idents: Vec<syn::Ident> =
+            generics.iter().map(|v| format_ident!("{}", v)).collect();
         let type_stream: TokenStream = quote! {
             #docs
             #[doc = #disclaimer]
             #[derive(Debug, Clone, Eq, PartialEq)]
-            pub struct #ext_name #generics {
+            pub struct #ext_name #generics_wrapped
+            where
+                #(#generics_idents: parity_scale_codec::Encode + parity_scale_codec::Decode, )*
+            {
                 #(#ext_args)*
             }
         };

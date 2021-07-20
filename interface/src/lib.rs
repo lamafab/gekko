@@ -90,6 +90,29 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct SignedExtra {
+    pub spec_version: (),
+    pub tx_version: (),
+    pub genesis: (),
+    pub era: (),
+    pub nonce: (),
+    pub weight: (),
+    pub payment: (),
+    pub claims: (),
+}
+
+pub struct AdditionalSigned {
+    pub spec_version: (),
+    pub tx_version: (),
+    pub genesis: (),
+    pub era: (),
+    pub nonce: (),
+    pub weight: (),
+    pub payment: (),
+    pub claims: (),
+}
+
 pub struct SignedPayload<Call, Extra, AdditionalSigned> {
     pub call: Call,
     pub extra: Extra,

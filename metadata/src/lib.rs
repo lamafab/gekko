@@ -12,7 +12,7 @@ use serde_json::Error as SerdeJsonError;
 
 type Result<T> = std::result::Result<T, Error>;
 
-mod version;
+pub mod version;
 
 pub struct ExtrinsicInfo<'a> {
     pub module_id: usize,

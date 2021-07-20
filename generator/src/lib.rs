@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
+use gekko_metadata::{parse_jsonrpc_metadata, ModuleMetadataExt};
 use proc_macro::TokenTree;
 use proc_macro2::TokenStream;
-use gekko_metadata::{parse_jsonrpc_metadata, ModuleMetadataExt};
 use quote::{format_ident, quote};
 use std::collections::HashMap;
 use std::fs::read_to_string;

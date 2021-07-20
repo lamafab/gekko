@@ -1,6 +1,7 @@
 use blake2_rfc::blake2b::blake2b;
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
+use schnorrkel::sign::Signature as SrSignature;
 use schnorrkel::signing_context;
 
 pub use latest::*;
@@ -70,18 +71,23 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
             .call
             .ok_or(Error::BuilderError("set_call".to_string()))?;
 
+        let extra = SignedExtra::new();
+        let additional = AdditionalSigned::new();
+        let payload = SignedPayload::from_parts(call, extra, additional);
+
         // TODO:
-        let sig = match signer {
+        let sig = match &signer {
             MultiSigner::Ed25519(_) => MultiSignature::Ed25519(Sig),
             MultiSigner::Sr25519(signer) => {
                 let context = signing_context(b"substrate");
-                //let sig = signer.sign(context.bytes())
-                unimplemented!()
+                let sig = payload.using_encoded(|payload| signer.sign(context.bytes(payload)));
+                MultiSignature::Sr25519(sig.to_bytes())
             }
             MultiSigner::Ecdsa(_) => MultiSignature::Ecdsa(Sig),
         };
 
         let addr = signer.into();
+        let (call, _, _) = payload.deconstruct();
 
         Ok(SignedExtrinsic {
             signature: Some((addr, sig, Extra)),
@@ -102,6 +108,13 @@ pub struct SignedExtra {
     pub claims: (),
 }
 
+impl SignedExtra {
+    pub fn new() -> Self {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct AdditionalSigned {
     pub spec_version: (),
     pub tx_version: (),
@@ -111,6 +124,12 @@ pub struct AdditionalSigned {
     pub weight: (),
     pub payment: (),
     pub claims: (),
+}
+
+impl AdditionalSigned {
+    pub fn new() -> Self {
+        unimplemented!()
+    }
 }
 
 pub struct SignedPayload<Call, Extra, AdditionalSigned> {
@@ -126,6 +145,9 @@ impl<Call, Extra, AdditionalSigned> SignedPayload<Call, Extra, AdditionalSigned>
             extra: extra,
             additional: additional,
         }
+    }
+    fn deconstruct(self) -> (Call, Extra, AdditionalSigned) {
+        (self.call, self.extra, self.additional)
     }
 }
 
@@ -165,7 +187,7 @@ pub enum MultiAddress<AccountId, AccountIndex> {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum MultiSignature {
     Ed25519(Sig),
-    Sr25519(Sig),
+    Sr25519([u8; 64]),
     Ecdsa(Sig),
 }
 

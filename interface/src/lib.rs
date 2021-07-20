@@ -1,4 +1,7 @@
+use blake2_rfc::blake2b::blake2b;
 use parity_scale_codec::{Decode, Encode};
+use schnorrkel::keys::Keypair as SrKeypair;
+use schnorrkel::signing_context;
 
 pub use latest::*;
 
@@ -34,7 +37,7 @@ pub enum Error {
 pub type PolkadotSignedExtrinsic<Call> =
     SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, Extra>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct PolkadotSignerBuilder<Call> {
     signer: Option<MultiSigner>,
     call: Option<Call>,
@@ -70,7 +73,11 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
         // TODO:
         let sig = match signer {
             MultiSigner::Ed25519(_) => MultiSignature::Ed25519(Sig),
-            MultiSigner::Sr25519(_) => MultiSignature::Sr25519(Sig),
+            MultiSigner::Sr25519(signer) => {
+                let context = signing_context(b"substrate");
+                //let sig = signer.sign(context.bytes())
+                unimplemented!()
+            }
             MultiSigner::Ecdsa(_) => MultiSignature::Ecdsa(Sig),
         };
 
@@ -79,6 +86,39 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
         Ok(SignedExtrinsic {
             signature: Some((addr, sig, Extra)),
             function: call,
+        })
+    }
+}
+
+pub struct SignedPayload<Call, Extra, AdditionalSigned> {
+    pub call: Call,
+    pub extra: Extra,
+    pub additional: AdditionalSigned,
+}
+
+impl<Call, Extra, AdditionalSigned> SignedPayload<Call, Extra, AdditionalSigned> {
+    fn from_parts(call: Call, extra: Extra, additional: AdditionalSigned) -> Self {
+        SignedPayload {
+            call: call,
+            extra: extra,
+            additional: additional,
+        }
+    }
+}
+
+impl<Call, Extra, AdditionalSigned> Encode for SignedPayload<Call, Extra, AdditionalSigned>
+where
+    Call: Encode,
+    Extra: Encode,
+    AdditionalSigned: Encode,
+{
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        (&self.call, &self.extra, &self.additional).using_encoded(|payload| {
+            if payload.len() > 256 {
+                f(blake2b(32, &[], &payload).as_bytes())
+            } else {
+                f(payload)
+            }
         })
     }
 }
@@ -115,10 +155,10 @@ impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Sig;
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone)]
 pub enum MultiSigner {
     Ed25519(Public),
-    Sr25519(Public),
+    Sr25519(SrKeypair),
     Ecdsa(Public),
 }
 

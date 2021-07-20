@@ -33,14 +33,6 @@ pub fn parse_from_hex_file(
     process_runtime_metadata(content.as_str()).into()
 }
 
-#[proc_macro_attribute]
-pub fn from_rpc_endpoint(
-    _args: proc_macro::TokenStream,
-    _: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    unimplemented!()
-}
-
 fn process_runtime_metadata(content: &str) -> TokenStream {
     // Parse runtime metadata
     let data = parse_hex_metadata(content)

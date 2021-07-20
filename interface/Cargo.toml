@@ -17,6 +17,12 @@ gekko-generator = { version = "0.1.0", path = "../generator" }
 gekko-metadata = { version = "0.1.0", path = "../metadata", optional = true }
 parity-scale-codec = { version = "2.2.0", features = ["derive"] }
 
+# Crypto utilities
+blake2-rfc = "0.2.18"
+ed25519-dalek = "1.0.1"
+schnorrkel = "0.9.1"
+libsecp256k1 = "0.3.2"
+
 [features]
 generator = []
 metadata = [ "gekko-metadata" ]

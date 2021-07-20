@@ -1,0 +1,16 @@
+[package]
+name = "gekko-dumps"
+version = "0.1.0"
+edition = "2018"
+authors = ["Fabio Lama <fabio.lama@pm.me>"]
+license = "MIT"
+description = "API interfaces for substrate-based blockchains"
+readme = "../README.md"
+homepage = "https://github.com/lamafab/gekko"
+repository = "https://github.com/lamafab/gekko"
+documentation = "https://docs.rs/gekko-dumps"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gekko-generator = { version = "0.1.0", path = "../generator" }

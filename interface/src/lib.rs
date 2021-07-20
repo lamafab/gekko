@@ -13,7 +13,7 @@ pub mod metadata {
 }
 
 pub mod latest {
-    #[gekko_generator::parse_from_hex_file("metadata/dumps/metadata_polkadot_9050.hex")]
+    #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_polkadot_9050.hex")]
     struct RM9050;
 }
 

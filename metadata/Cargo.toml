@@ -1,6 +1,6 @@
 [package]
 name = "gekko-metadata"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = ["Fabio Lama <fabio.lama@pm.me>"]
 license = "MIT"

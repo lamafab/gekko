@@ -18,4 +18,4 @@ parity-scale-codec = { version = "2.2.0", features = ["derive"] }
 
 [features]
 generator = []
-metadata = []
+metadata = [ "gekko-metadata" ]

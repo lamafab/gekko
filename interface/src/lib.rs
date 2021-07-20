@@ -4,6 +4,7 @@ use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
 use schnorrkel::sign::Signature as SrSignature;
 use schnorrkel::signing_context;
+use secp256k1::{Message, SecretKey};
 
 pub use latest::*;
 
@@ -37,7 +38,7 @@ pub enum Error {
 }
 
 pub type PolkadotSignedExtrinsic<Call> =
-    SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, Extra>;
+    SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, SignedExtra>;
 
 #[derive(Debug)]
 pub struct PolkadotSignerBuilder<Call> {
@@ -79,7 +80,7 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
         // TODO:
         let sig = match &signer {
             MultiSigner::Ed25519(signer) => {
-                let sig = payload.using_encoded(|payload| signer.sign((payload)));
+                let sig = payload.using_encoded(|payload| signer.sign(payload));
                 MultiSignature::Ed25519(sig.to_bytes())
             }
             MultiSigner::Sr25519(signer) => {
@@ -87,14 +88,29 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
                 let sig = payload.using_encoded(|payload| signer.sign(context.bytes(payload)));
                 MultiSignature::Sr25519(sig.to_bytes())
             }
-            MultiSigner::Ecdsa(_) => MultiSignature::Ecdsa(Sig),
+            MultiSigner::Ecdsa(signer) => {
+                let sig = payload.using_encoded(|payload| {
+                    let mut message: [u8; 32] = [0; 32];
+                    message.copy_from_slice(&blake2b(32, &[], &payload).as_bytes());
+
+                    let parsed = Message::parse(&message);
+                    let (sig, rec) = secp256k1::sign(&parsed, &signer);
+
+                    let mut serialized: [u8; 65] = [0; 65];
+                    serialized[..65].copy_from_slice(&sig.serialize());
+                    serialized[65] = rec.serialize();
+                    serialized
+                });
+
+                MultiSignature::Ecdsa(sig)
+            }
         };
 
         let addr = signer.into();
-        let (call, _, _) = payload.deconstruct();
+        let (call, extra, _) = payload.deconstruct();
 
         Ok(SignedExtrinsic {
-            signature: Some((addr, sig, Extra)),
+            signature: Some((addr, sig, extra)),
             function: call,
         })
     }
@@ -192,7 +208,7 @@ pub enum MultiAddress<AccountId, AccountIndex> {
 pub enum MultiSignature {
     Ed25519([u8; 64]),
     Sr25519([u8; 64]),
-    Ecdsa(Sig),
+    Ecdsa([u8; 65]),
 }
 
 impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
@@ -201,21 +217,12 @@ impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct Sig;
-
 #[derive(Debug)]
 pub enum MultiSigner {
     Ed25519(EdKeypair),
     Sr25519(SrKeypair),
-    Ecdsa(Public),
+    Ecdsa(SecretKey),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct Public;
-
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct AccountId32([u8; 32]);
-
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct Extra;

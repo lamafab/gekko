@@ -147,7 +147,7 @@ impl MetadataVersion {
 fn parse_file() {
     use std::fs::read_to_string;
 
-    let content = read_to_string("dumps/metadata_polkadot_9050.json").unwrap();
+    let content = read_to_string("dumps/metadata_polkadot_9050.hex").unwrap();
     let res = parse_jsonrpc_metadata(content).unwrap();
 
     let data = match res {

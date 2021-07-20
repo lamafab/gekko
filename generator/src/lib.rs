@@ -1,5 +1,5 @@
 use convert_case::{Case, Casing};
-use gekko_metadata::{parse_jsonrpc_metadata, ModuleMetadataExt};
+use gekko_metadata::{parse_hex_metadata, ModuleMetadataExt};
 use proc_macro::TokenTree;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fs::read_to_string;
 
 #[proc_macro_attribute]
-pub fn parse_from_file(
+pub fn parse_from_hex_file(
     args: proc_macro::TokenStream,
     _: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
@@ -43,7 +43,7 @@ pub fn from_rpc_endpoint(
 
 fn process_runtime_metadata(content: &str) -> TokenStream {
     // Parse runtime metadata
-    let data = parse_jsonrpc_metadata(content)
+    let data = parse_hex_metadata(content)
         .map_err(|err| panic!("Failed to parse runtime metadata: {:?}", err))
         .unwrap()
         .into_inner();

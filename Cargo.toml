@@ -2,5 +2,5 @@
 members = [
 	"metadata",
 	"generator",
-	"runtime"
+	"interface"
 ]

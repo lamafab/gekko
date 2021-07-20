@@ -1,4 +1,5 @@
 use blake2_rfc::blake2b::blake2b;
+use ed25519_dalek::{Keypair as EdKeypair, Signer};
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
 use schnorrkel::sign::Signature as SrSignature;
@@ -38,7 +39,7 @@ pub enum Error {
 pub type PolkadotSignedExtrinsic<Call> =
     SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, Extra>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PolkadotSignerBuilder<Call> {
     signer: Option<MultiSigner>,
     call: Option<Call>,
@@ -77,7 +78,10 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
 
         // TODO:
         let sig = match &signer {
-            MultiSigner::Ed25519(_) => MultiSignature::Ed25519(Sig),
+            MultiSigner::Ed25519(signer) => {
+                let sig = payload.using_encoded(|payload| signer.sign((payload)));
+                MultiSignature::Ed25519(sig.to_bytes())
+            }
             MultiSigner::Sr25519(signer) => {
                 let context = signing_context(b"substrate");
                 let sig = payload.using_encoded(|payload| signer.sign(context.bytes(payload)));
@@ -186,7 +190,7 @@ pub enum MultiAddress<AccountId, AccountIndex> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum MultiSignature {
-    Ed25519(Sig),
+    Ed25519([u8; 64]),
     Sr25519([u8; 64]),
     Ecdsa(Sig),
 }
@@ -200,9 +204,9 @@ impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Sig;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MultiSigner {
-    Ed25519(Public),
+    Ed25519(EdKeypair),
     Sr25519(SrKeypair),
     Ecdsa(Public),
 }

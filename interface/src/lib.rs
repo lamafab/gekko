@@ -67,10 +67,8 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
     pub fn build(self) -> Result<PolkadotSignedExtrinsic<Call>> {
         let signer = self
             .signer
-            .ok_or(Error::BuilderError("set_signer".to_string()))?;
-        let call = self
-            .call
-            .ok_or(Error::BuilderError("set_call".to_string()))?;
+            .ok_or(Error::BuilderError("signer".to_string()))?;
+        let call = self.call.ok_or(Error::BuilderError("call".to_string()))?;
 
         let extra = SignedExtraBuilder::new().build()?;
         let additional = AdditionalSigned::new();
@@ -117,69 +115,59 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SignedExtra {
-    pub spec_version: (),
-    pub tx_version: (),
-    pub genesis: (),
-    pub era: (),
-    pub nonce: (),
-    pub weight: (),
-    pub payment: (),
-    pub claims: (),
+    pub era: Era,
+    #[codec(compact)]
+    pub nonce: u32,
+    #[codec(compact)]
+    pub payment: u128,
 }
 
-struct SignedExtraBuilder {
-    spec_version: Option<()>,
-    tx_version: Option<()>,
-    genesis: Option<()>,
-    era: Option<()>,
-    nonce: Option<()>,
-    weight: Option<()>,
-    payment: Option<()>,
-    claims: Option<()>,
+pub struct SignedExtraBuilder {
+    era: Era,
+    nonce: Option<u32>,
+    payment: Option<u128>,
 }
 
 impl SignedExtraBuilder {
     pub fn new() -> Self {
         Self {
-            spec_version: None,
-            tx_version: None,
-            genesis: None,
-            era: None,
+            era: Era::Immortal,
             nonce: None,
-            weight: None,
             payment: None,
-            claims: None,
+        }
+    }
+    pub fn nonce(self, nonce: u32) -> Self {
+        Self {
+            nonce: Some(nonce),
+            ..self
+        }
+    }
+    // TODO: Add a better way to specify balances.
+    pub fn payment(self, balance: u128) -> Self {
+        Self {
+            payment: Some(balance),
+            ..self
         }
     }
     #[rustfmt::skip]
     pub fn build(self) -> Result<SignedExtra> {
         Ok(SignedExtra {
-            spec_version: self
-                .spec_version
-                .ok_or(Error::BuilderError("spec_version".to_string()))?,
-            tx_version: self
-                .tx_version
-                .ok_or(Error::BuilderError("tx_version".to_string()))?,
-            genesis: self
-                .genesis
-                .ok_or(Error::BuilderError("genesis".to_string()))?,
-            era: self
-                .era
-                .ok_or(Error::BuilderError("era".to_string()))?,
+            era: self.era,
             nonce: self
                 .nonce
                 .ok_or(Error::BuilderError("nonce".to_string()))?,
-            weight: self
-                .weight
-                .ok_or(Error::BuilderError("weight".to_string()))?,
             payment: self
                 .payment
                 .ok_or(Error::BuilderError("payment".to_string()))?,
-            claims: self
-                .claims
-                .ok_or(Error::BuilderError("claims".to_string()))?,
         })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+// TODO: Custom Encode/Decode implementation. See https://substrate.dev/rustdocs/latest/sp_runtime/generic/enum.Era.html
+pub enum Era {
+    Immortal,
+    Mortal((), ()),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -292,7 +280,8 @@ where
 }
 
 /// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+// TODO: This requires a custom Encode/Decode implementation.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedExtrinsic<Address, Call, Signature, Extra> {
     pub signature: Option<(Address, Signature, Extra)>,
     pub function: Call,

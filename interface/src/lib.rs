@@ -115,7 +115,7 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SignedExtra {
-    pub era: Era,
+    pub mortality: Era,
     #[codec(compact)]
     pub nonce: u32,
     #[codec(compact)]
@@ -123,7 +123,7 @@ pub struct SignedExtra {
 }
 
 pub struct SignedExtraBuilder {
-    era: Era,
+    mortality: Era,
     nonce: Option<u32>,
     payment: Option<u128>,
 }
@@ -131,9 +131,15 @@ pub struct SignedExtraBuilder {
 impl SignedExtraBuilder {
     pub fn new() -> Self {
         Self {
-            era: Era::Immortal,
+            mortality: Era::Immortal,
             nonce: None,
             payment: None,
+        }
+    }
+    pub fn mortality(self, era: Era) -> Self {
+        Self {
+            mortality: era,
+            ..self
         }
     }
     pub fn nonce(self, nonce: u32) -> Self {
@@ -152,7 +158,7 @@ impl SignedExtraBuilder {
     #[rustfmt::skip]
     pub fn build(self) -> Result<SignedExtra> {
         Ok(SignedExtra {
-            era: self.era,
+            mortality: self.mortality,
             nonce: self
                 .nonce
                 .ok_or(Error::BuilderError("nonce".to_string()))?,

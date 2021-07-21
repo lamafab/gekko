@@ -1,4 +1,4 @@
-use crate::common::{AccountId32, Era, MultiAddress, MultiSignature, MultiSigner};
+use crate::common::{AccountId32, Mortality, MultiAddress, MultiSignature, MultiSigner};
 use crate::{Error, Result};
 use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::{Keypair as EdKeypair, Signer};
@@ -94,7 +94,7 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Payload {
-    pub mortality: Era,
+    pub mortality: Mortality,
     #[codec(compact)]
     pub nonce: u32,
     #[codec(compact)]
@@ -102,7 +102,7 @@ pub struct Payload {
 }
 
 pub struct PayloadBuilder {
-    mortality: Era,
+    mortality: Mortality,
     nonce: Option<u32>,
     payment: Option<u128>,
 }
@@ -110,12 +110,12 @@ pub struct PayloadBuilder {
 impl PayloadBuilder {
     pub fn new() -> Self {
         Self {
-            mortality: Era::Immortal,
+            mortality: Mortality::Immortal,
             nonce: None,
             payment: None,
         }
     }
-    pub fn mortality(self, era: Era) -> Self {
+    pub fn mortality(self, era: Mortality) -> Self {
         Self {
             mortality: era,
             ..self
@@ -175,20 +175,38 @@ impl AdditionalPayloadBuilder {
             spec_version: None,
             tx_version: None,
             genesis: None,
-            era: None,
+            mortality: None,
         }
     }
     pub fn spec_version(self, version: u32) -> Self {
-	    Self { spec_version: Some(version), ..self }
+        Self {
+            spec_version: Some(version),
+            ..self
+        }
     }
     pub fn tx_version(self, version: u32) -> Self {
-	    Self { tx_version: Some(version), ..self }
+        Self {
+            tx_version: Some(version),
+            ..self
+        }
     }
     pub fn genesis<T: Into<[u8; 32]>>(self, genesis: T) -> Self {
-	    Self { genesis: Some(genesis.into()), ..self }
+        Self {
+            genesis: Some(genesis.into()),
+            ..self
+        }
     }
-    #[rustfmt::skip]
+    pub fn mortality<T: Into<[u8; 32]>>(self, birth_block: T) -> Self {
+        Self {
+            mortality: Some(birth_block.into()),
+            ..self
+        }
+    }
     pub fn build(self) -> Result<ExtraSignaturePayload> {
+        let genesis = self
+            .genesis
+            .ok_or(Error::BuilderError("genesis".to_string()))?;
+
         Ok(ExtraSignaturePayload {
             spec_version: self
                 .spec_version
@@ -196,12 +214,8 @@ impl AdditionalPayloadBuilder {
             tx_version: self
                 .tx_version
                 .ok_or(Error::BuilderError("tx_version".to_string()))?,
-            genesis: self
-                .genesis
-                .ok_or(Error::BuilderError("genesis".to_string()))?,
-            era: self
-                .era
-                .ok_or(Error::BuilderError("era".to_string()))?,
+            genesis: genesis,
+            mortality: self.mortality.unwrap_or(genesis),
         })
     }
 }

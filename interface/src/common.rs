@@ -13,7 +13,7 @@ pub mod scale {
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 // TODO: Custom Encode/Decode implementation. See https://substrate.dev/rustdocs/latest/sp_runtime/generic/enum.Era.html
-pub enum Era {
+pub enum Mortality {
     Immortal,
     Mortal((), ()),
 }

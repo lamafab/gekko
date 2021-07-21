@@ -2,7 +2,6 @@ use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::{Keypair as EdKeypair, Signer};
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
-use schnorrkel::sign::Signature as SrSignature;
 use schnorrkel::signing_context;
 use secp256k1::{Message, SecretKey};
 
@@ -53,13 +52,13 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
             call: None,
         }
     }
-    pub fn set_signer(self, signer: MultiSigner) -> Self {
+    pub fn signer(self, signer: MultiSigner) -> Self {
         Self {
             signer: Some(signer),
             ..self
         }
     }
-    pub fn set_call(self, call: Call) -> Self {
+    pub fn call(self, call: Call) -> Self {
         Self {
             call: Some(call),
             ..self
@@ -73,7 +72,7 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
             .call
             .ok_or(Error::BuilderError("set_call".to_string()))?;
 
-        let extra = SignedExtra::new();
+        let extra = SignedExtraBuilder::new().build()?;
         let additional = AdditionalSigned::new();
         let payload = SignedPayload::from_parts(call, extra, additional);
 
@@ -128,9 +127,53 @@ pub struct SignedExtra {
     pub claims: (),
 }
 
-impl SignedExtra {
+struct SignedExtraBuilder {
+    spec_version: Option<()>,
+    tx_version: Option<()>,
+    genesis: Option<()>,
+    era: Option<()>,
+    nonce: Option<()>,
+    weight: Option<()>,
+    payment: Option<()>,
+    claims: Option<()>,
+}
+
+impl SignedExtraBuilder {
     pub fn new() -> Self {
-        unimplemented!()
+        Self {
+            spec_version: None,
+            tx_version: None,
+            genesis: None,
+            era: None,
+            nonce: None,
+            weight: None,
+            payment: None,
+            claims: None,
+        }
+    }
+    pub fn build(self) -> Result<SignedExtra> {
+        Ok(SignedExtra {
+            spec_version: self
+                .spec_version
+                .ok_or(Error::BuilderError("spec_version".to_string()))?,
+            tx_version: self
+                .tx_version
+                .ok_or(Error::BuilderError("tx_version".to_string()))?,
+            genesis: self
+                .genesis
+                .ok_or(Error::BuilderError("genesis".to_string()))?,
+            era: self.era.ok_or(Error::BuilderError("era".to_string()))?,
+            nonce: self.nonce.ok_or(Error::BuilderError("nonce".to_string()))?,
+            weight: self
+                .weight
+                .ok_or(Error::BuilderError("weight".to_string()))?,
+            payment: self
+                .payment
+                .ok_or(Error::BuilderError("payment".to_string()))?,
+            claims: self
+                .claims
+                .ok_or(Error::BuilderError("claims".to_string()))?,
+        })
     }
 }
 

@@ -150,14 +150,10 @@ impl PayloadBuilder {
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct ExtraSignaturePayload {
-    pub spec_version: (),
-    pub tx_version: (),
-    pub genesis: (),
-    pub era: (),
-    pub nonce: (),
-    pub weight: (),
-    pub payment: (),
-    pub claims: (),
+    pub spec_version: u32,
+    pub tx_version: u32,
+    pub genesis: [u8; 32],
+    pub mortality: [u8; 32],
 }
 
 impl ExtraSignaturePayload {
@@ -167,14 +163,10 @@ impl ExtraSignaturePayload {
 }
 
 pub struct AdditionalPayloadBuilder {
-    spec_version: Option<()>,
-    tx_version: Option<()>,
-    genesis: Option<()>,
-    era: Option<()>,
-    nonce: Option<()>,
-    weight: Option<()>,
-    payment: Option<()>,
-    claims: Option<()>,
+    spec_version: Option<u32>,
+    tx_version: Option<u32>,
+    genesis: Option<[u8; 32]>,
+    mortality: Option<[u8; 32]>,
 }
 
 impl AdditionalPayloadBuilder {
@@ -184,11 +176,16 @@ impl AdditionalPayloadBuilder {
             tx_version: None,
             genesis: None,
             era: None,
-            nonce: None,
-            weight: None,
-            payment: None,
-            claims: None,
         }
+    }
+    pub fn spec_version(self, version: u32) -> Self {
+	    Self { spec_version: Some(version), ..self }
+    }
+    pub fn tx_version(self, version: u32) -> Self {
+	    Self { tx_version: Some(version), ..self }
+    }
+    pub fn genesis<T: Into<[u8; 32]>>(self, genesis: T) -> Self {
+	    Self { genesis: Some(genesis.into()), ..self }
     }
     #[rustfmt::skip]
     pub fn build(self) -> Result<ExtraSignaturePayload> {
@@ -205,18 +202,6 @@ impl AdditionalPayloadBuilder {
             era: self
                 .era
                 .ok_or(Error::BuilderError("era".to_string()))?,
-            nonce: self
-                .nonce
-                .ok_or(Error::BuilderError("nonce".to_string()))?,
-            weight: self
-                .weight
-                .ok_or(Error::BuilderError("weight".to_string()))?,
-            payment: self
-                .payment
-                .ok_or(Error::BuilderError("payment".to_string()))?,
-            claims: self
-                .claims
-                .ok_or(Error::BuilderError("claims".to_string()))?,
         })
     }
 }

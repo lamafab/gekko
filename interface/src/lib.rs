@@ -151,6 +151,7 @@ impl SignedExtraBuilder {
             claims: None,
         }
     }
+    #[rustfmt::skip]
     pub fn build(self) -> Result<SignedExtra> {
         Ok(SignedExtra {
             spec_version: self
@@ -162,8 +163,12 @@ impl SignedExtraBuilder {
             genesis: self
                 .genesis
                 .ok_or(Error::BuilderError("genesis".to_string()))?,
-            era: self.era.ok_or(Error::BuilderError("era".to_string()))?,
-            nonce: self.nonce.ok_or(Error::BuilderError("nonce".to_string()))?,
+            era: self
+                .era
+                .ok_or(Error::BuilderError("era".to_string()))?,
+            nonce: self
+                .nonce
+                .ok_or(Error::BuilderError("nonce".to_string()))?,
             weight: self
                 .weight
                 .ok_or(Error::BuilderError("weight".to_string()))?,
@@ -192,6 +197,61 @@ pub struct AdditionalSigned {
 impl AdditionalSigned {
     pub fn new() -> Self {
         unimplemented!()
+    }
+}
+
+pub struct AdditionalSignedBuilder {
+    spec_version: Option<()>,
+    tx_version: Option<()>,
+    genesis: Option<()>,
+    era: Option<()>,
+    nonce: Option<()>,
+    weight: Option<()>,
+    payment: Option<()>,
+    claims: Option<()>,
+}
+
+impl AdditionalSignedBuilder {
+    pub fn new() -> Self {
+        Self {
+            spec_version: None,
+            tx_version: None,
+            genesis: None,
+            era: None,
+            nonce: None,
+            weight: None,
+            payment: None,
+            claims: None,
+        }
+    }
+    #[rustfmt::skip]
+    pub fn build(self) -> Result<AdditionalSigned> {
+        Ok(AdditionalSigned {
+            spec_version: self
+                .spec_version
+                .ok_or(Error::BuilderError("spec_version".to_string()))?,
+            tx_version: self
+                .tx_version
+                .ok_or(Error::BuilderError("tx_version".to_string()))?,
+            genesis: self
+                .genesis
+                .ok_or(Error::BuilderError("genesis".to_string()))?,
+            era: self
+                .era
+                .ok_or(Error::BuilderError("era".to_string()))?,
+            nonce: self
+                .nonce
+                .ok_or(Error::BuilderError("nonce".to_string()))?,
+            weight: self
+                .weight
+                .ok_or(Error::BuilderError("weight".to_string()))?,
+            payment: self
+                .payment
+                .ok_or(Error::BuilderError("payment".to_string()))?,
+            claims: self
+                .claims
+                .ok_or(Error::BuilderError("claims".to_string()))?,
+        })
     }
 }
 

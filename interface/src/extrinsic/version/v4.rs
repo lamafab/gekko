@@ -7,8 +7,16 @@ use schnorrkel::keys::Keypair as SrKeypair;
 use schnorrkel::signing_context;
 use secp256k1::{Message, SecretKey};
 
+/// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
+// TODO: This requires a custom Encode/Decode implementation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedExtrinsic<Address, Call, Signature, ExtraSignaturePayload> {
+    pub signature: Option<(Address, Signature, ExtraSignaturePayload)>,
+    pub function: Call,
+}
+
 pub type PolkadotSignedExtrinsic<Call> =
-    SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, SignedExtra>;
+    SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, Payload>;
 
 #[derive(Debug)]
 pub struct PolkadotSignerBuilder<Call> {
@@ -41,9 +49,9 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
             .ok_or(Error::BuilderError("signer".to_string()))?;
         let call = self.call.ok_or(Error::BuilderError("call".to_string()))?;
 
-        let extra = SignedExtraBuilder::new().build()?;
-        let additional = AdditionalSigned::new();
-        let payload = SignedPayload::from_parts(call, extra, additional);
+        let payload = PayloadBuilder::new().build()?;
+        let additional = ExtraSignaturePayload::new();
+        let payload = SignaturePayload::from_parts(call, payload, additional);
 
         // TODO:
         let sig = match &signer {
@@ -75,17 +83,17 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
         };
 
         let addr = signer.into();
-        let (call, extra, _) = payload.deconstruct();
+        let (call, payload, _) = payload.deconstruct();
 
         Ok(SignedExtrinsic {
-            signature: Some((addr, sig, extra)),
+            signature: Some((addr, sig, payload)),
             function: call,
         })
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct SignedExtra {
+pub struct Payload {
     pub mortality: Era,
     #[codec(compact)]
     pub nonce: u32,
@@ -93,13 +101,13 @@ pub struct SignedExtra {
     pub payment: u128,
 }
 
-pub struct SignedExtraBuilder {
+pub struct PayloadBuilder {
     mortality: Era,
     nonce: Option<u32>,
     payment: Option<u128>,
 }
 
-impl SignedExtraBuilder {
+impl PayloadBuilder {
     pub fn new() -> Self {
         Self {
             mortality: Era::Immortal,
@@ -127,8 +135,8 @@ impl SignedExtraBuilder {
         }
     }
     #[rustfmt::skip]
-    pub fn build(self) -> Result<SignedExtra> {
-        Ok(SignedExtra {
+    pub fn build(self) -> Result<Payload> {
+        Ok(Payload {
             mortality: self.mortality,
             nonce: self
                 .nonce
@@ -141,7 +149,7 @@ impl SignedExtraBuilder {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct AdditionalSigned {
+pub struct ExtraSignaturePayload {
     pub spec_version: (),
     pub tx_version: (),
     pub genesis: (),
@@ -152,13 +160,13 @@ pub struct AdditionalSigned {
     pub claims: (),
 }
 
-impl AdditionalSigned {
+impl ExtraSignaturePayload {
     pub fn new() -> Self {
         unimplemented!()
     }
 }
 
-pub struct AdditionalSignedBuilder {
+pub struct AdditionalPayloadBuilder {
     spec_version: Option<()>,
     tx_version: Option<()>,
     genesis: Option<()>,
@@ -169,7 +177,7 @@ pub struct AdditionalSignedBuilder {
     claims: Option<()>,
 }
 
-impl AdditionalSignedBuilder {
+impl AdditionalPayloadBuilder {
     pub fn new() -> Self {
         Self {
             spec_version: None,
@@ -183,8 +191,8 @@ impl AdditionalSignedBuilder {
         }
     }
     #[rustfmt::skip]
-    pub fn build(self) -> Result<AdditionalSigned> {
-        Ok(AdditionalSigned {
+    pub fn build(self) -> Result<ExtraSignaturePayload> {
+        Ok(ExtraSignaturePayload {
             spec_version: self
                 .spec_version
                 .ok_or(Error::BuilderError("spec_version".to_string()))?,
@@ -213,33 +221,34 @@ impl AdditionalSignedBuilder {
     }
 }
 
-pub struct SignedPayload<Call, Extra, AdditionalSigned> {
+pub struct SignaturePayload<Call, Payload, ExtraSignaturePayload> {
     pub call: Call,
-    pub extra: Extra,
-    pub additional: AdditionalSigned,
+    pub payload: Payload,
+    pub additional: ExtraSignaturePayload,
 }
 
-impl<Call, Extra, AdditionalSigned> SignedPayload<Call, Extra, AdditionalSigned> {
-    fn from_parts(call: Call, extra: Extra, additional: AdditionalSigned) -> Self {
-        SignedPayload {
+impl<Call, Payload, ExtraSignaturePayload> SignaturePayload<Call, Payload, ExtraSignaturePayload> {
+    fn from_parts(call: Call, payload: Payload, additional: ExtraSignaturePayload) -> Self {
+        SignaturePayload {
             call: call,
-            extra: extra,
+            payload: payload,
             additional: additional,
         }
     }
-    fn deconstruct(self) -> (Call, Extra, AdditionalSigned) {
-        (self.call, self.extra, self.additional)
+    fn deconstruct(self) -> (Call, Payload, ExtraSignaturePayload) {
+        (self.call, self.payload, self.additional)
     }
 }
 
-impl<Call, Extra, AdditionalSigned> Encode for SignedPayload<Call, Extra, AdditionalSigned>
+impl<Call, Payload, ExtraSignaturePayload> Encode
+    for SignaturePayload<Call, Payload, ExtraSignaturePayload>
 where
     Call: Encode,
-    Extra: Encode,
-    AdditionalSigned: Encode,
+    Payload: Encode,
+    ExtraSignaturePayload: Encode,
 {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-        (&self.call, &self.extra, &self.additional).using_encoded(|payload| {
+        (&self.call, &self.payload, &self.additional).using_encoded(|payload| {
             if payload.len() > 256 {
                 f(blake2b(32, &[], &payload).as_bytes())
             } else {
@@ -247,12 +256,4 @@ where
             }
         })
     }
-}
-
-/// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
-// TODO: This requires a custom Encode/Decode implementation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SignedExtrinsic<Address, Call, Signature, Extra> {
-    pub signature: Option<(Address, Signature, Extra)>,
-    pub function: Call,
 }

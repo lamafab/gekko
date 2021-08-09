@@ -1,4 +1,6 @@
-use crate::common::{AccountId32, Mortality, MultiAddress, MultiSignature, MultiSigner, Network};
+use crate::common::{
+    AccountId32, Balance, Mortality, MultiAddress, MultiSignature, MultiSigner, Network,
+};
 use crate::{Error, Result};
 use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::{Keypair as EdKeypair, Signer};
@@ -9,7 +11,7 @@ use secp256k1::{Message, SecretKey};
 
 // TODO:
 const SPEC_VERSION: u32 = 0;
-const TX_VERSION: u32 = 0;
+const TX_VERSION: u32 = 4;
 
 /// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
 // TODO: This requires a custom Encode/Decode implementation.
@@ -28,7 +30,7 @@ pub struct ExtrinsicBuilder<Call> {
     call: Option<Call>,
     nonce: Option<u32>,
     // TODO: Create "Balance" alias
-    payment: Option<u128>,
+    payment: Option<Balance>,
     network: Option<Network>,
     raw_genesis: Option<[u8; 32]>,
     mortality: Mortality,
@@ -73,7 +75,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
             ..self
         }
     }
-    pub fn payment(self, payment: u128) -> Self {
+    pub fn payment(self, payment: Balance) -> Self {
         Self {
             payment: Some(payment),
             ..self
@@ -124,7 +126,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
                 }
                 (Some(network), None) => network.genesis(),
                 (None, Some(raw_genesis)) => raw_genesis,
-                _ => panic!(),
+                (None, None) => return Err(Error::BuilderMissingField("network")),
             }
         };
 
@@ -141,7 +143,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         };
 
         // Create the full signature payload.
-        let sig_payload = SignaturePayload::from_parts(call, payload, extra);
+        let sig_payload = SignaturePayload::new(call, payload, extra);
 
         // Create signature.
         let sig = match &signer {
@@ -189,7 +191,7 @@ pub struct Payload {
     #[codec(compact)]
     pub nonce: u32,
     #[codec(compact)]
-    pub payment: u128,
+    pub payment: Balance,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -200,12 +202,6 @@ pub struct ExtraSignaturePayload {
     pub mortality: [u8; 32],
 }
 
-impl ExtraSignaturePayload {
-    pub fn new() -> Self {
-        unimplemented!()
-    }
-}
-
 pub struct SignaturePayload<Call, Payload, ExtraSignaturePayload> {
     pub call: Call,
     pub payload: Payload,
@@ -213,7 +209,7 @@ pub struct SignaturePayload<Call, Payload, ExtraSignaturePayload> {
 }
 
 impl<Call, Payload, ExtraSignaturePayload> SignaturePayload<Call, Payload, ExtraSignaturePayload> {
-    fn from_parts(call: Call, payload: Payload, extra: ExtraSignaturePayload) -> Self {
+    fn new(call: Call, payload: Payload, extra: ExtraSignaturePayload) -> Self {
         SignaturePayload {
             call: call,
             payload: payload,

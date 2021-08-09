@@ -11,6 +11,8 @@ pub mod scale {
     pub use parity_scale_codec::*;
 }
 
+pub type Balance = u128;
+
 #[derive(Debug, Clone, Copy)]
 pub enum Network {
     Polkadot,

@@ -10,7 +10,7 @@ pub mod metadata {
     pub use gekko_metadata::*;
 }
 
-pub mod extrinsic;
+pub mod transaction;
 // TODO: Rename to "primitives"?
 pub mod common;
 

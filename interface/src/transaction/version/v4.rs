@@ -69,7 +69,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
     }
     /// Set the nonce of the transaction. You must track and increment the nonce
     /// of the corresponding signer manually, retrieved from the blockchain.
-    /// Keep pending transactions in mind. 
+    /// Keep pending transactions in mind.
     pub fn nonce(self, nonce: u32) -> Self {
         Self {
             nonce: Some(nonce),

@@ -1,6 +1,7 @@
 use crate::common::{
     AccountId32, Balance, Mortality, MultiAddress, MultiSignature, MultiSigner, Network,
 };
+use crate::runtime::{LATEST_KUSAMA_SPEC_VERSION, LATEST_POLKADOT_SPEC_VERSION};
 use crate::{Error, Result};
 use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::Signer;
@@ -8,8 +9,6 @@ use parity_scale_codec::{Decode, Encode};
 use schnorrkel::signing_context;
 use secp256k1::Message;
 
-// TODO:
-const SPEC_VERSION: u32 = 0;
 const TX_VERSION: u32 = 4;
 
 /// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
@@ -33,7 +32,7 @@ pub struct ExtrinsicBuilder<Call> {
     network: Option<Network>,
     raw_genesis: Option<[u8; 32]>,
     mortality: Mortality,
-    spec_version: u32,
+    spec_version: Option<u32>,
 }
 
 impl<Call> Default for ExtrinsicBuilder<Call> {
@@ -46,7 +45,7 @@ impl<Call> Default for ExtrinsicBuilder<Call> {
             network: None,
             raw_genesis: None,
             mortality: Mortality::Immortal,
-            spec_version: SPEC_VERSION,
+            spec_version: None,
         }
     }
 }
@@ -100,7 +99,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
     }
     pub fn spec_version(self, version: u32) -> Self {
         Self {
-            spec_version: version,
+            spec_version: Some(version),
             ..self
         }
     }
@@ -118,13 +117,29 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         };
 
         // Prepare extra signature payload.
-        let genesis = {
+        let (genesis, spec_version) = {
             match (self.network, self.raw_genesis) {
                 (Some(_), Some(_)) => {
                     return Err(Error::BuilderContradictingEntries("network", "raw_genesis"));
                 }
-                (Some(network), None) => network.genesis(),
-                (None, Some(raw_genesis)) => raw_genesis,
+                (Some(network), None) => {
+                    let spec_version = match network {
+                        Network::Kusama => self.spec_version.unwrap_or(LATEST_KUSAMA_SPEC_VERSION),
+                        Network::Polkadot => {
+                            self.spec_version.unwrap_or(LATEST_POLKADOT_SPEC_VERSION)
+                        }
+                        _ => self
+                            .spec_version
+                            .ok_or(Error::BuilderMissingField("spec_version"))?,
+                    };
+
+                    (network.genesis(), spec_version)
+                }
+                (None, Some(raw_genesis)) => (
+                    raw_genesis,
+                    self.spec_version
+                        .ok_or(Error::BuilderMissingField("spec_version"))?,
+                ),
                 (None, None) => return Err(Error::BuilderMissingField("network")),
             }
         };
@@ -135,7 +150,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         };
 
         let extra = ExtraSignaturePayload {
-            spec_version: self.spec_version,
+            spec_version: spec_version,
             tx_version: TX_VERSION,
             genesis: genesis,
             mortality: mortality,

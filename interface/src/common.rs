@@ -4,7 +4,6 @@ use schnorrkel::keys::Keypair as SrKeypair;
 use secp256k1::SecretKey;
 
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
-// TODO: Enable via feature?
 pub mod scale {
     pub use parity_scale_codec::*;
 }

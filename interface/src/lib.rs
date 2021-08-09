@@ -23,6 +23,9 @@ pub mod transaction;
 pub mod common;
 
 pub mod runtime {
+    pub const LATEST_POLKADOT_SPEC_VERSION: u32 = 9050;
+    pub const LATEST_KUSAMA_SPEC_VERSION: u32 = 9050;
+
     #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_polkadot_9050.hex")]
     struct RM9050;
 }

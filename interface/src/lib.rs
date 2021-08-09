@@ -1,11 +1,19 @@
 pub use runtime::*;
 
+#[cfg(feature = "dumps")]
+/// Raw Kusama and Polkadot runtime metadata dumps.
+pub mod dumps {
+    pub use gekko_metadata::*;
+}
+
 #[cfg(feature = "generator")]
+/// Substrate runtime metadata generator for creating Rust interfaces.
 pub mod generator {
     pub use gekko_generator::*;
 }
 
 #[cfg(feature = "metadata")]
+/// Utilities for parsing substrate runtime metadata.
 pub mod metadata {
     pub use gekko_metadata::*;
 }

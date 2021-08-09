@@ -11,7 +11,8 @@ use secp256k1::Message;
 
 pub const TX_VERSION: u32 = 4;
 
-/// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
+/// A transaction that can contain a signature. Referred to as
+/// "UncheckedExtrinsic" in Substrate vocabulary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction<Address, Call, Signature, ExtraSignaturePayload> {
     pub signature: Option<(Address, Signature, ExtraSignaturePayload)>,

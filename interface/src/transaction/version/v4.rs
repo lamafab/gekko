@@ -3,11 +3,10 @@ use crate::common::{
 };
 use crate::{Error, Result};
 use blake2_rfc::blake2b::blake2b;
-use ed25519_dalek::{Keypair as EdKeypair, Signer};
+use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
-use schnorrkel::keys::Keypair as SrKeypair;
 use schnorrkel::signing_context;
-use secp256k1::{Message, SecretKey};
+use secp256k1::Message;
 
 // TODO:
 const SPEC_VERSION: u32 = 0;

@@ -1,9 +1,7 @@
-use blake2_rfc::blake2b::blake2b;
-use ed25519_dalek::{Keypair as EdKeypair, Signer};
+use ed25519_dalek::Keypair as EdKeypair;
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
-use schnorrkel::signing_context;
-use secp256k1::{Message, SecretKey};
+use secp256k1::SecretKey;
 
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
 // TODO: Enable via feature?

@@ -50,8 +50,8 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
         let call = self.call.ok_or(Error::BuilderError("call".to_string()))?;
 
         let payload = PayloadBuilder::new().build()?;
-        let additional = ExtraSignaturePayload::new();
-        let payload = SignaturePayload::from_parts(call, payload, additional);
+        let extra = ExtraSignaturePayload::new();
+        let payload = SignaturePayload::from_parts(call, payload, extra);
 
         // TODO:
         let sig = match &signer {
@@ -162,14 +162,14 @@ impl ExtraSignaturePayload {
     }
 }
 
-pub struct AdditionalPayloadBuilder {
+pub struct ExtraSignaturePayloadBuilder {
     spec_version: Option<u32>,
     tx_version: Option<u32>,
     genesis: Option<[u8; 32]>,
     mortality: Option<[u8; 32]>,
 }
 
-impl AdditionalPayloadBuilder {
+impl ExtraSignaturePayloadBuilder {
     pub fn new() -> Self {
         Self {
             spec_version: None,
@@ -223,19 +223,19 @@ impl AdditionalPayloadBuilder {
 pub struct SignaturePayload<Call, Payload, ExtraSignaturePayload> {
     pub call: Call,
     pub payload: Payload,
-    pub additional: ExtraSignaturePayload,
+    pub extra: ExtraSignaturePayload,
 }
 
 impl<Call, Payload, ExtraSignaturePayload> SignaturePayload<Call, Payload, ExtraSignaturePayload> {
-    fn from_parts(call: Call, payload: Payload, additional: ExtraSignaturePayload) -> Self {
+    fn from_parts(call: Call, payload: Payload, extra: ExtraSignaturePayload) -> Self {
         SignaturePayload {
             call: call,
             payload: payload,
-            additional: additional,
+            extra: extra,
         }
     }
     fn deconstruct(self) -> (Call, Payload, ExtraSignaturePayload) {
-        (self.call, self.payload, self.additional)
+        (self.call, self.payload, self.extra)
     }
 }
 
@@ -247,7 +247,7 @@ where
     ExtraSignaturePayload: Encode,
 {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-        (&self.call, &self.payload, &self.additional).using_encoded(|payload| {
+        (&self.call, &self.payload, &self.extra).using_encoded(|payload| {
             if payload.len() > 256 {
                 f(blake2b(32, &[], &payload).as_bytes())
             } else {

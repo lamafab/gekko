@@ -20,12 +20,23 @@ pub enum Network {
 
 impl Network {
     pub fn genesis(&self) -> [u8; 32] {
-        match self {
-            Self::Polkadot => [0; 32],
-            Self::Kusama => [0; 32],
-            Self::Westend => [0; 32],
-            Self::Custom(genesis) => *genesis,
-        }
+        let mut genesis = [0; 32];
+
+        let hash_str = match self {
+            Self::Polkadot => {
+                "c0096358534ec8d21d01d34b836eed476a1c343f8724fa2153dc0725ad797a90"
+            },
+            Self::Kusama => {
+                "cd9b8e2fc2f57c4570a86319b005832080e0c478ab41ae5d44e23705872f5ad3"
+            },
+            Self::Westend => {
+                "44ef51c86927a1e2da55754dba9684dd6ff9bac8c61624ffe958be656c42e036"
+            },
+            Self::Custom(genesis) => return *genesis,
+        };
+
+        hex::decode_to_slice(hash_str, &mut genesis).unwrap();
+        genesis
     }
 }
 

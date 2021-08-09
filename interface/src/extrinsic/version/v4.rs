@@ -19,17 +19,23 @@ pub type PolkadotSignedExtrinsic<Call> =
     SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, Payload>;
 
 #[derive(Debug)]
-pub struct PolkadotSignerBuilder<Call> {
+pub struct ExtrinsicBuilder<Call> {
     signer: Option<MultiSigner>,
     call: Option<Call>,
 }
 
-impl<Call: Encode> PolkadotSignerBuilder<Call> {
-    pub fn new() -> Self {
+impl<Call> Default for ExtrinsicBuilder<Call> {
+    fn default() -> Self {
         Self {
             signer: None,
             call: None,
         }
+    }
+}
+
+impl<Call: Encode> ExtrinsicBuilder<Call> {
+    pub fn new() -> Self {
+        Default::default()
     }
     pub fn signer(self, signer: MultiSigner) -> Self {
         Self {
@@ -43,11 +49,28 @@ impl<Call: Encode> PolkadotSignerBuilder<Call> {
             ..self
         }
     }
+    pub fn custom_payload(self) -> Result<ExtrinsicCustomPayloadBuilder<Call>> {
+        let signer = self
+            .signer
+            .ok_or(Error::BuilderErrorMissingField("signer".to_string()))?;
+        let call = self
+            .call
+            .ok_or(Error::BuilderErrorMissingField("call".to_string()))?;
+
+        Ok(ExtrinsicCustomPayloadBuilder {
+            signer: signer,
+            call: call,
+            payload: None,
+            extra: None,
+        })
+    }
     pub fn build(self) -> Result<PolkadotSignedExtrinsic<Call>> {
         let signer = self
             .signer
-            .ok_or(Error::BuilderError("signer".to_string()))?;
-        let call = self.call.ok_or(Error::BuilderError("call".to_string()))?;
+            .ok_or(Error::BuilderErrorMissingField("signer".to_string()))?;
+        let call = self
+            .call
+            .ok_or(Error::BuilderErrorMissingField("call".to_string()))?;
 
         let payload = PayloadBuilder::new().build()?;
         let extra = ExtraSignaturePayload::new();
@@ -140,12 +163,20 @@ impl PayloadBuilder {
             mortality: self.mortality,
             nonce: self
                 .nonce
-                .ok_or(Error::BuilderError("nonce".to_string()))?,
+                .ok_or(Error::BuilderErrorMissingField("nonce".to_string()))?,
             payment: self
                 .payment
-                .ok_or(Error::BuilderError("payment".to_string()))?,
+                .ok_or(Error::BuilderErrorMissingField("payment".to_string()))?,
         })
     }
+}
+
+#[derive(Debug)]
+pub struct ExtrinsicCustomPayloadBuilder<Call> {
+    signer: MultiSigner,
+    call: Call,
+    payload: Option<Payload>,
+    extra: Option<ExtraSignaturePayload>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -154,6 +185,69 @@ pub struct ExtraSignaturePayload {
     pub tx_version: u32,
     pub genesis: [u8; 32],
     pub mortality: [u8; 32],
+}
+
+impl<Call: Encode> ExtrinsicCustomPayloadBuilder<Call> {
+    pub fn payload(self, payload: Payload) -> Self {
+        Self {
+            payload: Some(payload),
+            ..self
+        }
+    }
+    pub fn signed_extra(self, extra: ExtraSignaturePayload) -> Self {
+        Self {
+            extra: Some(extra),
+            ..self
+        }
+    }
+    pub fn build(self) -> Result<PolkadotSignedExtrinsic<Call>> {
+        let payload = self
+            .payload
+            .ok_or(Error::BuilderErrorMissingField("payload".to_string()))?;
+        let extra = self
+            .extra
+            .ok_or(Error::BuilderErrorMissingField("signed_extra".to_string()))?;
+
+        // Construct full payload.
+        let payload = SignaturePayload::from_parts(self.call, payload, extra);
+
+        // TODO:
+        let sig = match &self.signer {
+            MultiSigner::Ed25519(signer) => {
+                let sig = payload.using_encoded(|payload| signer.sign(payload));
+                MultiSignature::Ed25519(sig.to_bytes())
+            }
+            MultiSigner::Sr25519(signer) => {
+                let context = signing_context(b"substrate");
+                let sig = payload.using_encoded(|payload| signer.sign(context.bytes(payload)));
+                MultiSignature::Sr25519(sig.to_bytes())
+            }
+            MultiSigner::Ecdsa(signer) => {
+                let sig = payload.using_encoded(|payload| {
+                    let mut message: [u8; 32] = [0; 32];
+                    message.copy_from_slice(&blake2b(32, &[], &payload).as_bytes());
+
+                    let parsed = Message::parse(&message);
+                    let (sig, rec) = secp256k1::sign(&parsed, &signer);
+
+                    let mut serialized: [u8; 65] = [0; 65];
+                    serialized[..65].copy_from_slice(&sig.serialize());
+                    serialized[65] = rec.serialize();
+                    serialized
+                });
+
+                MultiSignature::Ecdsa(sig)
+            }
+        };
+
+        let addr = self.signer.into();
+        let (call, payload, _) = payload.deconstruct();
+
+        Ok(SignedExtrinsic {
+            signature: Some((addr, sig, payload)),
+            function: call,
+        })
+    }
 }
 
 impl ExtraSignaturePayload {
@@ -205,15 +299,15 @@ impl ExtraSignaturePayloadBuilder {
     pub fn build(self) -> Result<ExtraSignaturePayload> {
         let genesis = self
             .genesis
-            .ok_or(Error::BuilderError("genesis".to_string()))?;
+            .ok_or(Error::BuilderErrorMissingField("genesis".to_string()))?;
 
         Ok(ExtraSignaturePayload {
             spec_version: self
                 .spec_version
-                .ok_or(Error::BuilderError("spec_version".to_string()))?,
+                .ok_or(Error::BuilderErrorMissingField("spec_version".to_string()))?,
             tx_version: self
                 .tx_version
-                .ok_or(Error::BuilderError("tx_version".to_string()))?,
+                .ok_or(Error::BuilderErrorMissingField("tx_version".to_string()))?,
             genesis: genesis,
             mortality: self.mortality.unwrap_or(genesis),
         })

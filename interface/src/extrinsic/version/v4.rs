@@ -104,18 +104,10 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         }
     }
     pub fn build(self) -> Result<PolkadotSignedExtrinsic<Call>> {
-        let signer = self
-            .signer
-            .ok_or(Error::BuilderErrorMissingField("signer".to_string()))?;
-        let call = self
-            .call
-            .ok_or(Error::BuilderErrorMissingField("call".to_string()))?;
-        let nonce = self
-            .nonce
-            .ok_or(Error::BuilderErrorMissingField("nonce".to_string()))?;
-        let payment = self
-            .payment
-            .ok_or(Error::BuilderErrorMissingField("payment".to_string()))?;
+        let signer = self.signer.ok_or(Error::BuilderMissingField("signer"))?;
+        let call = self.call.ok_or(Error::BuilderMissingField("call"))?;
+        let nonce = self.nonce.ok_or(Error::BuilderMissingField("nonce"))?;
+        let payment = self.payment.ok_or(Error::BuilderMissingField("payment"))?;
 
         // Prepare transaction payload.
         let payload = Payload {
@@ -128,10 +120,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         let genesis = {
             match (self.network, self.raw_genesis) {
                 (Some(_), Some(_)) => {
-                    return Err(Error::BuilderErrorContradictingEntries(
-                        "network",
-                        "raw_genesis",
-                    ));
+                    return Err(Error::BuilderContradictingEntries("network", "raw_genesis"));
                 }
                 (Some(network), None) => network.genesis(),
                 (None, Some(raw_genesis)) => raw_genesis,

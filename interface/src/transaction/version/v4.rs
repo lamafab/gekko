@@ -13,13 +13,13 @@ pub const TX_VERSION: u32 = 4;
 
 /// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SignedExtrinsic<Address, Call, Signature, ExtraSignaturePayload> {
+pub struct Transaction<Address, Call, Signature, ExtraSignaturePayload> {
     pub signature: Option<(Address, Signature, ExtraSignaturePayload)>,
     pub call: Call,
 }
 
 impl<Address, Call, Signature, ExtraSignaturePayload> Encode
-	for SignedExtrinsic<Address, Call, Signature, ExtraSignaturePayload>
+	for Transaction<Address, Call, Signature, ExtraSignaturePayload>
 where
 	Address: Encode,
 	Signature: Encode,
@@ -48,7 +48,7 @@ where
 }
 
 impl<Address, Call, Signature, ExtraSignaturePayload> Decode
-	for SignedExtrinsic<Address, Call, Signature, ExtraSignaturePayload>
+	for Transaction<Address, Call, Signature, ExtraSignaturePayload>
 where
 	Address: Decode,
 	Signature: Decode,
@@ -76,7 +76,7 @@ where
 }
 
 pub type PolkadotSignedExtrinsic<Call> =
-    SignedExtrinsic<MultiAddress<AccountId32, ()>, Call, MultiSignature, Payload>;
+    Transaction<MultiAddress<AccountId32, ()>, Call, MultiSignature, Payload>;
 
 #[derive(Debug)]
 pub struct ExtrinsicBuilder<Call> {
@@ -236,7 +236,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         let addr = signer.into();
         let (call, payload, _) = sig_payload.deconstruct();
 
-        Ok(SignedExtrinsic {
+        Ok(Transaction {
             signature: Some((addr, sig, payload)),
             call: call,
         })

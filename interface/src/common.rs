@@ -11,7 +11,24 @@ pub mod scale {
     pub use parity_scale_codec::*;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy)]
+pub enum Network {
+    Polkadot,
+    Kusama,
+    Westend,
+}
+
+impl Network {
+    pub fn genesis(&self) -> [u8; 32] {
+        match self {
+            Self::Polkadot => [0; 32],
+            Self::Kusama => [0; 32],
+            Self::Westend => [0; 32],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 // TODO: Custom Encode/Decode implementation. See https://substrate.dev/rustdocs/latest/sp_runtime/generic/enum.Era.html
 pub enum Mortality {
     Immortal,

@@ -15,6 +15,7 @@ pub enum Network {
     Polkadot,
     Kusama,
     Westend,
+    Custom([u8; 32]),
 }
 
 impl Network {
@@ -23,6 +24,7 @@ impl Network {
             Self::Polkadot => [0; 32],
             Self::Kusama => [0; 32],
             Self::Westend => [0; 32],
+            Self::Custom(genesis) => *genesis,
         }
     }
 }
@@ -31,7 +33,16 @@ impl Network {
 // TODO: Custom Encode/Decode implementation. See https://substrate.dev/rustdocs/latest/sp_runtime/generic/enum.Era.html
 pub enum Mortality {
     Immortal,
-    Mortal((), ()),
+    Mortal([u8; 32]),
+}
+
+impl Mortality {
+    /// The block number from where the period of mortality begins. The
+    /// corresponding block hash required for the final transaction must be
+    /// retrieved from the blockchain manually.
+    pub fn mortal(current: u64, period: u64, phase: u64) -> u64 {
+        (current.max(phase) - phase) / period * period + phase
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]

@@ -1,7 +1,7 @@
 use crate::common::{
     AccountId32, Balance, Mortality, MultiAddress, MultiSignature, MultiSigner, Network,
 };
-use crate::runtime::{LATEST_KUSAMA_SPEC_VERSION, LATEST_POLKADOT_SPEC_VERSION};
+use crate::runtime::{kusama, polkadot};
 use crate::{Error, Result};
 use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::Signer;
@@ -9,7 +9,7 @@ use parity_scale_codec::{Decode, Encode};
 use schnorrkel::signing_context;
 use secp256k1::Message;
 
-const TX_VERSION: u32 = 4;
+pub const TX_VERSION: u32 = 4;
 
 /// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
 // TODO: This requires a custom Encode/Decode implementation.
@@ -27,10 +27,8 @@ pub struct ExtrinsicBuilder<Call> {
     signer: Option<MultiSigner>,
     call: Option<Call>,
     nonce: Option<u32>,
-    // TODO: Create "Balance" alias
     payment: Option<Balance>,
     network: Option<Network>,
-    raw_genesis: Option<[u8; 32]>,
     mortality: Mortality,
     spec_version: Option<u32>,
 }
@@ -43,7 +41,6 @@ impl<Call> Default for ExtrinsicBuilder<Call> {
             nonce: None,
             payment: None,
             network: None,
-            raw_genesis: None,
             mortality: Mortality::Immortal,
             spec_version: None,
         }
@@ -61,12 +58,18 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
             ..self
         }
     }
+    /// Set the extrinsic this transaction must call. Available extrinsic
+    /// interfaces are located in the [runtime](crate::runtime) module. This
+    /// function accepts any type which implements [the SCALE codec](Encode).
     pub fn call(self, call: Call) -> Self {
         Self {
             call: Some(call),
             ..self
         }
     }
+    /// Set the nonce of the transaction. You must track and increment the nonce
+    /// of the corresponding signer manually, retrieved from the blockchain.
+    /// Keep pending transactions in mind. 
     pub fn nonce(self, nonce: u32) -> Self {
         Self {
             nonce: Some(nonce),
@@ -79,24 +82,26 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
             ..self
         }
     }
+    /// Set the network this transaction is for.
     pub fn network(self, network: Network) -> Self {
         Self {
             network: Some(network),
             ..self
         }
     }
-    pub fn raw_genesis(self, genesis: [u8; 32]) -> Self {
-        Self {
-            raw_genesis: Some(genesis),
-            ..self
-        }
-    }
+    /// Set the mortality of the transaction. Immortal by default.
     pub fn mortality(self, mortality: Mortality) -> Self {
         Self {
             mortality: mortality,
             ..self
         }
     }
+    /// Set the `spec_version` of the runtime. For Kusama and Polkadot,
+    /// the builder uses the **latest** known versions by default:
+    /// [kusama::LATEST_SPEC_VERSION] and [polkadot::LATEST_SPEC_VERSION]
+    /// respectively.
+    ///
+    /// For any other [Network], calling this function is required.
     pub fn spec_version(self, version: u32) -> Self {
         Self {
             spec_version: Some(version),
@@ -108,6 +113,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         let call = self.call.ok_or(Error::BuilderMissingField("call"))?;
         let nonce = self.nonce.ok_or(Error::BuilderMissingField("nonce"))?;
         let payment = self.payment.ok_or(Error::BuilderMissingField("payment"))?;
+        let network = self.network.ok_or(Error::BuilderMissingField("network"))?;
 
         // Prepare transaction payload.
         let payload = Payload {
@@ -116,43 +122,25 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
             payment: payment,
         };
 
-        // Prepare extra signature payload.
-        let (genesis, spec_version) = {
-            match (self.network, self.raw_genesis) {
-                (Some(_), Some(_)) => {
-                    return Err(Error::BuilderContradictingEntries("network", "raw_genesis"));
-                }
-                (Some(network), None) => {
-                    let spec_version = match network {
-                        Network::Kusama => self.spec_version.unwrap_or(LATEST_KUSAMA_SPEC_VERSION),
-                        Network::Polkadot => {
-                            self.spec_version.unwrap_or(LATEST_POLKADOT_SPEC_VERSION)
-                        }
-                        _ => self
-                            .spec_version
-                            .ok_or(Error::BuilderMissingField("spec_version"))?,
-                    };
-
-                    (network.genesis(), spec_version)
-                }
-                (None, Some(raw_genesis)) => (
-                    raw_genesis,
-                    self.spec_version
-                        .ok_or(Error::BuilderMissingField("spec_version"))?,
-                ),
-                (None, None) => return Err(Error::BuilderMissingField("network")),
-            }
+        // Determine spec_version.
+        let spec_version = match network {
+            Network::Kusama => self.spec_version.unwrap_or(kusama::LATEST_SPEC_VERSION),
+            Network::Polkadot => self.spec_version.unwrap_or(polkadot::LATEST_SPEC_VERSION),
+            // `spec_version` must be provided for any other network
+            _ => self
+                .spec_version
+                .ok_or(Error::BuilderMissingField("spec_version"))?,
         };
 
         let mortality = match self.mortality {
-            Mortality::Immortal => genesis,
-            Mortality::Mortal(_, _) => unimplemented!(),
+            Mortality::Immortal => network.genesis(),
+            Mortality::Mortal(birth) => birth,
         };
 
         let extra = ExtraSignaturePayload {
             spec_version: spec_version,
             tx_version: TX_VERSION,
-            genesis: genesis,
+            genesis: network.genesis(),
             mortality: mortality,
         };
 
@@ -213,6 +201,9 @@ pub struct ExtraSignaturePayload {
     pub spec_version: u32,
     pub tx_version: u32,
     pub genesis: [u8; 32],
+    /// The block hash from where the period of mortality begins. If the
+    /// transaction is immortal, it's the genesis hash. See [Mortality] for more
+    /// information.
     pub mortality: [u8; 32],
 }
 
@@ -244,7 +235,7 @@ where
 {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
         (&self.call, &self.payload, &self.extra).using_encoded(|payload| {
-            if payload.len() > 256 {
+            if payload.len() > 32 {
                 f(blake2b(32, &[], &payload).as_bytes())
             } else {
                 f(payload)

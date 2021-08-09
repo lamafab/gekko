@@ -11,10 +11,10 @@
 // # LICENSE OF THE COPIED WORK
 //
 // This file is part of Substrate.
-
+//
 // Copyright (C) 2017-2021 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
-
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -32,7 +32,7 @@ use base58::{FromBase58, ToBase58};
 use blake2_rfc::blake2b::Blake2b;
 
 pub trait Ss58Codec: Sized + AsMut<[u8]> + AsRef<[u8]> + Default {
-	/// Converts the SS58 encoded string into the key and returns it.
+    /// Converts the SS58 encoded string into the key.
     fn from_string(s: &str) -> Result<Self> {
         Self::from_string_with_version(s).map(|(r, _)| r)
     }
@@ -43,7 +43,7 @@ pub trait Ss58Codec: Sized + AsMut<[u8]> + AsRef<[u8]> + Default {
             _ => Ok(r),
         })
     }
-	/// Converts the SS58 encoded string into the key. Returns the key and the identified address format.
+    /// Converts the SS58 encoded string into the key. Additionally returns the identified address format.
     fn from_string_with_version(s: &str) -> Result<(Self, Ss58AddressFormat)> {
         const CHECKSUM_LEN: usize = 2;
         let mut res = Self::default();
@@ -86,7 +86,7 @@ pub trait Ss58Codec: Sized + AsMut<[u8]> + AsRef<[u8]> + Default {
             .copy_from_slice(&data[prefix_len..body_len + prefix_len]);
         Ok((res, format))
     }
-	/// Returns the SS58 encoded string of the key.
+    /// Returns the SS58 encoded string of the key.
     fn to_string_with_version(&self, version: Ss58AddressFormat) -> String {
         // We mask out the upper two bits of the ident - SS58 Prefix currently only supports 14-bits
         let ident: u16 = u16::from(version) & 0b0011_1111_1111_1111;

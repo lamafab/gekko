@@ -98,7 +98,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
     }
     /// Set the `spec_version` of the runtime. For Kusama and Polkadot,
     /// the builder uses the **latest** known versions by default:
-    /// [kusama::LATEST_SPEC_VERSION] and [polkadot::LATEST_SPEC_VERSION]
+    /// [kusama::LATEST_SPEC_VERSION] and [polkadot::LATEST_SPEC_VERSION],
     /// respectively.
     ///
     /// For any other [Network], calling this function is required.

@@ -140,21 +140,22 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
             mortality: mortality,
         };
 
-        let payload = SignaturePayload::from_parts(call, payload, extra);
+        // Create the full signature payload.
+        let sig_payload = SignaturePayload::from_parts(call, payload, extra);
 
-        // TODO:
+        // Create signature.
         let sig = match &signer {
             MultiSigner::Ed25519(signer) => {
-                let sig = payload.using_encoded(|payload| signer.sign(payload));
+                let sig = sig_payload.using_encoded(|payload| signer.sign(payload));
                 MultiSignature::Ed25519(sig.to_bytes())
             }
             MultiSigner::Sr25519(signer) => {
                 let context = signing_context(b"substrate");
-                let sig = payload.using_encoded(|payload| signer.sign(context.bytes(payload)));
+                let sig = sig_payload.using_encoded(|payload| signer.sign(context.bytes(payload)));
                 MultiSignature::Sr25519(sig.to_bytes())
             }
             MultiSigner::Ecdsa(signer) => {
-                let sig = payload.using_encoded(|payload| {
+                let sig = sig_payload.using_encoded(|payload| {
                     let mut message: [u8; 32] = [0; 32];
                     message.copy_from_slice(&blake2b(32, &[], &payload).as_bytes());
 
@@ -171,8 +172,9 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
             }
         };
 
+        // Prepare all entries for the final extrinsic.
         let addr = signer.into();
-        let (call, payload, _) = payload.deconstruct();
+        let (call, payload, _) = sig_payload.deconstruct();
 
         Ok(SignedExtrinsic {
             signature: Some((addr, sig, payload)),

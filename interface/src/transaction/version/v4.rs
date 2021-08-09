@@ -5,18 +5,74 @@ use crate::runtime::{kusama, polkadot};
 use crate::{Error, Result};
 use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::Signer;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Input, Error as ScaleError};
 use schnorrkel::signing_context;
 use secp256k1::Message;
 
 pub const TX_VERSION: u32 = 4;
 
 /// The signed extrinsic, aka. "UncheckedExtrinsic" in terms of substrate.
-// TODO: This requires a custom Encode/Decode implementation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedExtrinsic<Address, Call, Signature, ExtraSignaturePayload> {
     pub signature: Option<(Address, Signature, ExtraSignaturePayload)>,
-    pub function: Call,
+    pub call: Call,
+}
+
+impl<Address, Call, Signature, ExtraSignaturePayload> Encode
+	for SignedExtrinsic<Address, Call, Signature, ExtraSignaturePayload>
+where
+	Address: Encode,
+	Signature: Encode,
+	Call: Encode,
+	ExtraSignaturePayload: Encode,
+{
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        let mut enc: Vec<u8> = vec![];
+
+        // Add version Id.
+        match &self.signature {
+            Some(sig) => {
+                // First bit implies signed (1), remaining 7 bits represent the TX_VERSION.
+                enc.push(132);
+                sig.encode_to(&mut enc);
+            }
+            None => {
+                // First bit implies unsigned (0), remaining 7 bits represent the TX_VERSION.
+                enc.push(4);
+            }
+        }
+
+        self.call.encode_to(&mut enc);
+        f(&enc)
+    }
+}
+
+impl<Address, Call, Signature, ExtraSignaturePayload> Decode
+	for SignedExtrinsic<Address, Call, Signature, ExtraSignaturePayload>
+where
+	Address: Decode,
+	Signature: Decode,
+	Call: Decode,
+	ExtraSignaturePayload: Decode,
+{
+	fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, ScaleError> {
+        // Throw away that compact integer which indicates the array length.
+		let _: Vec<()> = Decode::decode(input)?;
+
+        // Determine transaction version, handle signed/unsigned variant.
+		let sig = match input.read_byte()? {
+            132 => Some(Decode::decode(input)?),
+            4 => None,
+            _ => return Err("Invalid transaction version".into())
+        };
+
+        Ok(
+            Self {
+                signature: sig,
+                call: Decode::decode(input)?,
+            }
+        )
+    }
 }
 
 pub type PolkadotSignedExtrinsic<Call> =
@@ -182,7 +238,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
 
         Ok(SignedExtrinsic {
             signature: Some((addr, sig, payload)),
-            function: call,
+            call: call,
         })
     }
 }
@@ -235,7 +291,7 @@ where
 {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
         (&self.call, &self.payload, &self.extra).using_encoded(|payload| {
-            if payload.len() > 32 {
+            if payload.len() > 256 {
                 f(blake2b(32, &[], &payload).as_bytes())
             } else {
                 f(payload)

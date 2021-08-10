@@ -1,5 +1,5 @@
 use self::ss58format::{Ss58AddressFormat, Ss58Codec};
-use crate::{blake2b, Error, Result};
+use crate::{blake2b, Error};
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
@@ -8,7 +8,6 @@ use schnorrkel::{signing_context, ExpansionMode, MiniSecretKey};
 use secp256k1::{Message, Secp256k1};
 
 pub mod ss58format;
-
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
 pub mod scale {
     pub use parity_scale_codec::*;
@@ -19,7 +18,38 @@ pub mod crypto {
     pub use secp256k1;
 }
 
+type Result<T> = std::result::Result<T, PrimitiveError>;
+
 pub type Balance = u128;
+
+#[derive(Debug)]
+pub enum PrimitiveError {
+    // Related to signature or keypair.
+    SchnorrkelSignature(schnorrkel::SignatureError),
+    Ed25519Signature(ed25519_dalek::SignatureError),
+    Secp256k1Signature(secp256k1::Error),
+    InvalidSignature,
+    InvalidKeySignatureMatch,
+}
+
+
+impl From<schnorrkel::SignatureError> for PrimitiveError {
+    fn from(val: schnorrkel::SignatureError) -> Self {
+        PrimitiveError::SchnorrkelSignature(val)
+    }
+}
+
+impl From<ed25519_dalek::SignatureError> for PrimitiveError {
+    fn from(val: ed25519_dalek::SignatureError) -> Self {
+        PrimitiveError::Ed25519Signature(val)
+    }
+}
+
+impl From<secp256k1::Error> for PrimitiveError {
+    fn from(val: secp256k1::Error) -> Self {
+        PrimitiveError::Secp256k1Signature(val)
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Network {
@@ -94,14 +124,11 @@ impl Sr25519KeyPair {
         Sr25519KeyPair(schnorrkel::keys::Keypair::generate())
     }
     pub fn from_seed(seed: &[u8]) -> Result<Self> {
-        // TODO: Handle unwraps.
         let pair = match seed.len() {
-            MINI_SECRET_KEY_LENGTH => MiniSecretKey::from_bytes(seed)
-                .unwrap()
-                .expand_to_keypair(ExpansionMode::Ed25519),
-            SECRET_KEY_LENGTH => schnorrkel::SecretKey::from_bytes(seed)
-                .unwrap()
-                .to_keypair(),
+            MINI_SECRET_KEY_LENGTH => {
+                MiniSecretKey::from_bytes(seed)?.expand_to_keypair(ExpansionMode::Ed25519)
+            }
+            SECRET_KEY_LENGTH => schnorrkel::SecretKey::from_bytes(seed)?.to_keypair(),
             _ => panic!(),
         };
 
@@ -116,14 +143,13 @@ impl Sr25519KeyPair {
         message: T,
         signature: S,
     ) -> Result<()> {
-        let sig_parsed = schnorrkel::sign::Signature::from_bytes(signature.as_ref()).unwrap();
+        let sig_parsed = schnorrkel::sign::Signature::from_bytes(signature.as_ref())?;
         let context = signing_context(Self::SIGNING_CONTEXT.as_bytes());
 
-        Ok(self
-            .0
+        self.0
             .public
             .verify(context.bytes(message.as_ref()), &sig_parsed)
-            .unwrap())
+            .map_err(|_| PrimitiveError::InvalidSignature)
     }
     /// Consumes the keypair into the underlying type. The Sr25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -140,7 +166,7 @@ impl Ed25519KeyPair {
         Ed25519KeyPair(ed25519_dalek::Keypair::generate(&mut OsRng))
     }
     pub fn from_seed(seed: &[u8]) -> Result<Self> {
-        let secret = ed25519_dalek::SecretKey::from_bytes(seed).unwrap();
+        let secret = ed25519_dalek::SecretKey::from_bytes(seed)?;
         let public = ed25519_dalek::PublicKey::from(&secret);
         Ok(Ed25519KeyPair(ed25519_dalek::Keypair { secret, public }))
     }
@@ -161,12 +187,12 @@ impl Ed25519KeyPair {
         let mut buffer = [0; 64];
         buffer.copy_from_slice(sig);
 
-        Ok(ed25519_dalek::Verifier::verify(
+        ed25519_dalek::Verifier::verify(
             &self.0,
             message.as_ref(),
             &ed25519_dalek::Signature::new(buffer),
         )
-        .unwrap())
+        .map_err(|_| PrimitiveError::InvalidSignature)
     }
     /// Consumes the keypair into the underlying type. The Ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -195,7 +221,7 @@ impl EcdsaKeyPair {
         }
     }
     pub fn from_seed(seed: &[u8]) -> Result<Self> {
-        let secret = secp256k1::SecretKey::from_slice(seed).unwrap();
+        let secret = secp256k1::SecretKey::from_slice(seed)?;
 
         let engine = secp256k1::Secp256k1::signing_only();
         let public = secp256k1::PublicKey::from_secret_key(&engine, &secret);
@@ -208,7 +234,6 @@ impl EcdsaKeyPair {
         // Message must be 32-bytes.
         let message = blake2b(&message.as_ref());
 
-        // TODO: Handle unwrap
         let parsed = Message::from_slice(&message).unwrap();
         let (recovery, sig) = Secp256k1::signing_only()
             .sign_recoverable(&parsed, &self.secret)
@@ -236,11 +261,10 @@ impl EcdsaKeyPair {
             } else {
                 &sig
             }
-        })
-        .unwrap();
+        })?;
 
         let engine = secp256k1::Secp256k1::verification_only();
-        Ok(engine.verify(&message, &sig, &self.public).unwrap())
+        engine.verify(&message, &sig, &self.public).map_err(|_| PrimitiveError::InvalidSignature)
     }
     /// Consumes the keypair into the underlying type. The ECDSA library is
     /// exposed in the [common::crypto](crypto) module.
@@ -303,8 +327,7 @@ impl MultiKeyPair {
             (Self::Ecdsa(signer), MultiSignature::Ecdsa(sig)) => {
                 signer.verify_simple(message.as_ref(), sig)
             }
-            // TODO: Change error type
-            _ => Err(Error::BuilderMissingField("")),
+            _ => Err(PrimitiveError::InvalidKeySignatureMatch),
         }
     }
 }

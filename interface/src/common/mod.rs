@@ -201,6 +201,24 @@ impl MultiSigner {
     }
 }
 
+impl From<Sr25519KeyPair> for MultiSigner {
+    fn from(val: Sr25519KeyPair) -> Self {
+        MultiSigner::Sr25519(val)
+    }
+}
+
+impl From<Ed25519KeyPair> for MultiSigner {
+    fn from(val: Ed25519KeyPair) -> Self {
+        MultiSigner::Ed25519(val)
+    }
+}
+
+impl From<EcdsaKeyPair> for MultiSigner {
+    fn from(val: EcdsaKeyPair) -> Self {
+        MultiSigner::Ecdsa(val)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct AccountId32([u8; 32]);
 

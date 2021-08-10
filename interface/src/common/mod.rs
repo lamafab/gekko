@@ -204,7 +204,7 @@ impl EcdsaKeyPair {
             public: public,
         })
     }
-    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> [u8; 65] {
+    pub fn sign_simple<T: AsRef<[u8]>>(&self, message: T) -> [u8; 65] {
         // Message must be 32-bytes.
         let message = blake2b(&message.as_ref());
 
@@ -218,6 +218,29 @@ impl EcdsaKeyPair {
         serialized[..64].copy_from_slice(&sig);
         serialized[64] = recovery.to_i32() as u8;
         serialized
+    }
+    pub fn verify_simple<T: AsRef<[u8]>, S: AsRef<[u8]>>(
+        &self,
+        message: T,
+        signature: S,
+    ) -> Result<()> {
+        // Message must be 32-bytes.
+        let message = secp256k1::Message::from_slice(&blake2b(message.as_ref())).unwrap();
+
+        // TODO: Error message should specify compact encoding.
+        let sig = signature.as_ref();
+        let sig = secp256k1::Signature::from_compact({
+            // Handle recovery byte.
+            if sig.len() == 65 {
+                &sig[0..64]
+            } else {
+                &sig
+            }
+        })
+        .unwrap();
+
+        let engine = secp256k1::Secp256k1::verification_only();
+        Ok(engine.verify(&message, &sig, &self.public).unwrap())
     }
     /// Consumes the keypair into the underlying type. The ECDSA library is
     /// exposed in the [common::crypto](crypto) module.
@@ -262,7 +285,7 @@ impl MultiKeyPair {
         match self {
             MultiKeyPair::Ed25519(signer) => MultiSignature::Ed25519(signer.sign_simple(message)),
             MultiKeyPair::Sr25519(signer) => MultiSignature::Sr25519(signer.sign_simple(message)),
-            MultiKeyPair::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign(message)),
+            MultiKeyPair::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign_simple(message)),
         }
     }
 }

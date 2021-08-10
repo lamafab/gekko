@@ -1,12 +1,10 @@
 use self::ss58format::{Ss58AddressFormat, Ss58Codec};
 use crate::blake2b;
-use ed25519_dalek::Keypair as EdKeypair;
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
-use schnorrkel::keys::Keypair as SrKeypair;
 use schnorrkel::signing_context;
-use secp256k1::{Message, Secp256k1, SecretKey};
+use secp256k1::{Message, Secp256k1};
 
 pub mod ss58format;
 
@@ -85,29 +83,29 @@ impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
 }
 
 #[derive(Debug)]
-pub struct Sr25519KeyPair(SrKeypair);
+pub struct Sr25519KeyPair(schnorrkel::keys::Keypair);
 
 impl Sr25519KeyPair {
     pub fn new() -> Self {
-        Sr25519KeyPair(SrKeypair::generate())
+        Sr25519KeyPair(schnorrkel::keys::Keypair::generate())
     }
     /// Consumes the keypair into the underlying type. The sr25519 library is
     /// exposed in the [common::crypto](crypto) module.
-    pub fn into_inner(self) -> SrKeypair {
+    pub fn into_inner(self) -> schnorrkel::keys::Keypair {
         self.0
     }
 }
 
 #[derive(Debug)]
-pub struct Ed25519KeyPair(EdKeypair);
+pub struct Ed25519KeyPair(ed25519_dalek::Keypair);
 
 impl Ed25519KeyPair {
     pub fn new() -> Self {
-        Ed25519KeyPair(EdKeypair::generate(&mut OsRng))
+        Ed25519KeyPair(ed25519_dalek::Keypair::generate(&mut OsRng))
     }
     /// Consumes the keypair into the underlying type. The ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
-    pub fn into_inner(self) -> EdKeypair {
+    pub fn into_inner(self) -> ed25519_dalek::Keypair {
         self.0
     }
 }

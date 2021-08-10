@@ -3,10 +3,7 @@ use crate::common::{
 };
 use crate::runtime::{kusama, polkadot};
 use crate::{blake2b, Error, Result};
-use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
-use schnorrkel::signing_context;
-use secp256k1::{Message, Secp256k1};
 
 pub const TX_VERSION: u32 = 4;
 

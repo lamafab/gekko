@@ -1,9 +1,9 @@
 use self::ss58format::{Ss58AddressFormat, Ss58Codec};
-use crate::blake2b;
+use crate::{blake2b, Result};
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
-use schnorrkel::signing_context;
+use schnorrkel::{signing_context, ExpansionMode, MiniSecretKey};
 use secp256k1::{Message, Secp256k1};
 
 pub mod ss58format;
@@ -89,7 +89,14 @@ impl Sr25519KeyPair {
     pub fn new() -> Self {
         Sr25519KeyPair(schnorrkel::keys::Keypair::generate())
     }
-    /// Consumes the keypair into the underlying type. The sr25519 library is
+    pub fn from_seed(seed: &[u8]) -> Result<Self> {
+        Ok(Sr25519KeyPair(
+            MiniSecretKey::from_bytes(seed)
+                .unwrap()
+                .expand_to_keypair(ExpansionMode::Ed25519),
+        ))
+    }
+    /// Consumes the keypair into the underlying type. The Sr25519 library is
     /// exposed in the [common::crypto](crypto) module.
     pub fn into_inner(self) -> schnorrkel::keys::Keypair {
         self.0
@@ -103,7 +110,7 @@ impl Ed25519KeyPair {
     pub fn new() -> Self {
         Ed25519KeyPair(ed25519_dalek::Keypair::generate(&mut OsRng))
     }
-    /// Consumes the keypair into the underlying type. The ed25519 library is
+    /// Consumes the keypair into the underlying type. The Ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
     pub fn into_inner(self) -> ed25519_dalek::Keypair {
         self.0
@@ -129,7 +136,7 @@ impl EcdsaKeyPair {
             public: public,
         }
     }
-    /// Consumes the keypair into the underlying type. The ecdsa library is
+    /// Consumes the keypair into the underlying type. The ECDSA library is
     /// exposed in the [common::crypto](crypto) module.
     pub fn into_inner(self) -> (secp256k1::SecretKey, secp256k1::PublicKey) {
         (self.secret, self.public)

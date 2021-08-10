@@ -28,23 +28,25 @@ where
 	ExtraSignaturePayload: Encode,
 {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-        let mut enc: Vec<u8> = vec![];
+        let mut enc: Vec<u8> = Vec::with_capacity(std::mem::size_of::<Self>());
 
         // Add version Id.
         match &self.signature {
             Some(sig) => {
-                // First bit implies signed (1), remaining 7 bits represent the TX_VERSION.
+                // First bit implies signed (1), remaining 7 bis
+                // represent the TX_VERSION.
                 enc.push(132);
                 sig.encode_to(&mut enc);
             }
             None => {
-                // First bit implies unsigned (0), remaining 7 bits represent the TX_VERSION.
+                // First bit implies unsigned (0), remaining 7 bits
+                // represent the TX_VERSION.
                 enc.push(4);
             }
         }
 
         self.call.encode_to(&mut enc);
-        f(&enc)
+        f(&enc.encode())
     }
 }
 
@@ -61,6 +63,7 @@ where
 		let _: Vec<()> = Decode::decode(input)?;
 
         // Determine transaction version, handle signed/unsigned variant.
+        // See the `Encode` implementation on why those values are used.
 		let sig = match input.read_byte()? {
             132 => Some(Decode::decode(input)?),
             4 => None,
@@ -224,8 +227,8 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
                     let (sig, rec) = secp256k1::sign(&parsed, &signer);
 
                     let mut serialized: [u8; 65] = [0; 65];
-                    serialized[..65].copy_from_slice(&sig.serialize());
-                    serialized[65] = rec.serialize();
+                    serialized[..64].copy_from_slice(&sig.serialize());
+                    serialized[64] = rec.serialize();
                     serialized
                 });
 
@@ -298,5 +301,38 @@ where
                 f(payload)
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transaction_encode_decode() {
+        type UnsignedTransaction = Transaction<(), SomeExtrinsic, (), ()>;
+
+        #[derive(Debug, Eq, PartialEq, Encode, Decode)]
+        struct SomeExtrinsic {
+            a: u32,
+            b: String,
+            c: Vec<u32>
+        }
+
+        let call = SomeExtrinsic {
+            a: 10,
+            b: "some".to_string(),
+            c: vec![20, 30, 40]
+        };
+
+        let transaction = UnsignedTransaction {
+            signature: None,
+            call: call,
+        };
+
+        let mut encoded = transaction.encode();
+        let decoded: UnsignedTransaction = Decode::decode(&mut encoded.as_ref()).unwrap();
+
+        assert_eq!(transaction, decoded);
     }
 }

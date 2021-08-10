@@ -118,6 +118,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         // Build the final type.
         let generics_idents: Vec<syn::Ident> =
             generics.iter().map(|v| format_ident!("{}", v)).collect();
+
         let type_stream: TokenStream = quote! {
             #docs
             #[doc = #disclaimer]

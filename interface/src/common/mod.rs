@@ -1,7 +1,6 @@
-use self::ss58format::{Ss58AddressFormat, Ss58Codec};
 use parity_scale_codec::{Decode, Encode};
+use sp_core::crypto::{Pair, Ss58AddressFormat, Ss58Codec};
 
-pub mod ss58format;
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
 pub mod scale {
     pub use parity_scale_codec::*;
@@ -38,7 +37,7 @@ impl Network {
 
 pub struct KeyPairBuilder<T>(std::marker::PhantomData<T>);
 
-impl<T: sp_core::crypto::Pair> KeyPairBuilder<T> {
+impl<T: Pair> KeyPairBuilder<T> {
     pub fn generate() -> (T, T::Seed) {
         T::generate()
     }
@@ -82,6 +81,7 @@ impl From<Ecdsa> for MultiKeyPair {
 // TODO: Custom Encode/Decode implementation. See https://substrate.dev/rustdocs/latest/sp_runtime/generic/enum.Era.html
 pub enum Mortality {
     Immortal,
+    // TODO: Also needs period and phase.
     Mortal([u8; 32]),
 }
 
@@ -119,12 +119,31 @@ impl From<sp_core::ecdsa::Signature> for MultiSignature {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
 pub struct AccountId32([u8; 32]);
 
 impl AccountId32 {
+    pub fn new(bytes: [u8; 32]) -> Self {
+        AccountId32(bytes)
+    }
+    // TODO: Doc: clarify Option
+    // TODO: Result.
+    pub fn from_ss58_address(addr: &str, expected: Option<Ss58AddressFormat>) -> Result<Self, ()> {
+        let (account, format) = Self::from_ss58check_with_version(addr).unwrap();
+        if let Some(expected) = expected {
+            if format != expected {
+                unimplemented!()
+            }
+        }
+
+        Ok(account)
+    }
+    pub fn from_ss58_address_with_version(addr: &str) -> Result<(Self, Ss58AddressFormat), ()> {
+        let (account, format) = Self::from_ss58check_with_version(addr).unwrap();
+        Ok((account, format))
+    }
     pub fn to_ss58_address(&self, format: Ss58AddressFormat) -> String {
-        Ss58Codec::to_string_with_format(&self.0, format)
+        self.to_ss58check_with_version(format)
     }
     /// Returns the underlying public key or the blake2b hash in case of ECDSA.
     pub fn to_bytes(&self) -> [u8; 32] {
@@ -133,8 +152,38 @@ impl AccountId32 {
     // TODO: Add method to extra public key.
 }
 
+impl Ss58Codec for AccountId32 {}
+
+impl AsRef<[u8]> for AccountId32 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0[..]
+    }
+}
+
+impl AsMut<[u8]> for AccountId32 {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0[..]
+    }
+}
+
+impl From<sp_core::sr25519::Public> for AccountId32 {
+    fn from(val: sp_core::sr25519::Public) -> Self {
+        AccountId32(val.0)
+    }
+}
+
+impl From<sp_core::ed25519::Public> for AccountId32 {
+    fn from(val: sp_core::ed25519::Public) -> Self {
+        AccountId32(val.0)
+    }
+}
+
 impl From<MultiKeyPair> for AccountId32 {
-    fn from(_: MultiKeyPair) -> Self {
-        unimplemented!()
+    fn from(val: MultiKeyPair) -> Self {
+        match val {
+            MultiKeyPair::Ed25519(pair) => pair.public().into(),
+            MultiKeyPair::Sr25519(pair) => pair.public().into(),
+            MultiKeyPair::Ecdsa(_) => unimplemented!(),
+        }
     }
 }

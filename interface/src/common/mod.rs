@@ -33,11 +33,46 @@ impl Network {
     }
 }
 
+pub struct KeyPairBuilder<T>(std::marker::PhantomData<T>);
+
+impl<T: sp_core::crypto::Pair> KeyPairBuilder<T> {
+    pub fn generate() -> (T, T::Seed) {
+        T::generate()
+    }
+    pub fn from_seed(seed: &T::Seed) -> T {
+        T::from_seed(seed)
+    }
+    pub fn from_phase(
+        phase: &str,
+        password: Option<&str>,
+    ) -> Result<(T, T::Seed), sp_core::crypto::SecretStringError> {
+        T::from_phrase(phase, password)
+    }
+}
+
 #[derive(Clone)]
 pub enum MultiKeyPair {
     Ed25519(sp_core::ed25519::Pair),
     Sr25519(sp_core::sr25519::Pair),
     Ecdsa(sp_core::ecdsa::Pair),
+}
+
+impl From<sp_core::ed25519::Pair> for MultiKeyPair {
+    fn from(val: sp_core::ed25519::Pair) -> Self {
+        MultiKeyPair::Ed25519(val)
+    }
+}
+
+impl From<sp_core::sr25519::Pair> for MultiKeyPair {
+    fn from(val: sp_core::sr25519::Pair) -> Self {
+        MultiKeyPair::Sr25519(val)
+    }
+}
+
+impl From<sp_core::ecdsa::Pair> for MultiKeyPair {
+    fn from(val: sp_core::ecdsa::Pair) -> Self {
+        MultiKeyPair::Ecdsa(val)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]

@@ -119,7 +119,9 @@ impl Ed25519KeyPair {
         Ed25519KeyPair(ed25519_dalek::Keypair::generate(&mut OsRng))
     }
     pub fn from_seed(seed: &[u8]) -> Result<Self> {
-        unimplemented!()
+        let secret = ed25519_dalek::SecretKey::from_bytes(seed).unwrap();
+        let public = ed25519_dalek::PublicKey::from(&secret);
+        Ok(Ed25519KeyPair(ed25519_dalek::Keypair { secret, public }))
     }
     /// Consumes the keypair into the underlying type. The Ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -137,15 +139,25 @@ pub struct EcdsaKeyPair {
 impl EcdsaKeyPair {
     pub fn new() -> Self {
         let engine = secp256k1::Secp256k1::signing_only();
-        let (secret, public) = engine.generate_keypair(
-            &mut secp256k1::rand::rngs::OsRng::new()
-                .expect("Failed to generate random seed from OS"),
-        );
+        let mut os_rng =
+            secp256k1::rand::rngs::OsRng::new().expect("Failed to generate random seed from OS");
+
+        let (secret, public) = engine.generate_keypair(&mut os_rng);
 
         EcdsaKeyPair {
             secret: secret,
             public: public,
         }
+    }
+    pub fn from_seed(seed: &[u8]) -> Result<Self> {
+        let secret = secp256k1::SecretKey::from_slice(seed).unwrap();
+
+        let engine = secp256k1::Secp256k1::signing_only();
+        let public = secp256k1::PublicKey::from_secret_key(&engine, &secret);
+        Ok(EcdsaKeyPair {
+            secret: secret,
+            public: public,
+        })
     }
     /// Consumes the keypair into the underlying type. The ECDSA library is
     /// exposed in the [common::crypto](crypto) module.

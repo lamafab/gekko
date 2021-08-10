@@ -8,6 +8,9 @@ pub mod scale {
 }
 
 pub type Balance = u128;
+pub type Sr25519 = sp_core::sr25519::Pair;
+pub type Ed25519 = sp_core::ed25519::Pair;
+pub type Ecdsa = sp_core::ecdsa::Pair;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Network {
@@ -52,25 +55,25 @@ impl<T: sp_core::crypto::Pair> KeyPairBuilder<T> {
 
 #[derive(Clone)]
 pub enum MultiKeyPair {
-    Ed25519(sp_core::ed25519::Pair),
-    Sr25519(sp_core::sr25519::Pair),
-    Ecdsa(sp_core::ecdsa::Pair),
+    Ed25519(Ed25519),
+    Sr25519(Sr25519),
+    Ecdsa(Ecdsa),
 }
 
-impl From<sp_core::ed25519::Pair> for MultiKeyPair {
-    fn from(val: sp_core::ed25519::Pair) -> Self {
+impl From<Ed25519> for MultiKeyPair {
+    fn from(val: Ed25519) -> Self {
         MultiKeyPair::Ed25519(val)
     }
 }
 
-impl From<sp_core::sr25519::Pair> for MultiKeyPair {
-    fn from(val: sp_core::sr25519::Pair) -> Self {
+impl From<Sr25519> for MultiKeyPair {
+    fn from(val: Sr25519) -> Self {
         MultiKeyPair::Sr25519(val)
     }
 }
 
-impl From<sp_core::ecdsa::Pair> for MultiKeyPair {
-    fn from(val: sp_core::ecdsa::Pair) -> Self {
+impl From<Ecdsa> for MultiKeyPair {
+    fn from(val: Ecdsa) -> Self {
         MultiKeyPair::Ecdsa(val)
     }
 }

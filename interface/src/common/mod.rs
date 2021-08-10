@@ -111,7 +111,11 @@ impl Sr25519KeyPair {
         let context = signing_context(Self::SIGNING_CONTEXT.as_bytes());
         self.0.sign(context.bytes(message.as_ref())).to_bytes()
     }
-    pub fn verify_simple<T: AsRef<[u8]>, S: AsRef<[u8]>>(&self, message: T, signature: S) -> Result<()> {
+    pub fn verify_simple<T: AsRef<[u8]>, S: AsRef<[u8]>>(
+        &self,
+        message: T,
+        signature: S,
+    ) -> Result<()> {
         let sig_parsed = schnorrkel::sign::Signature::from_bytes(signature.as_ref()).unwrap();
         let context = signing_context(Self::SIGNING_CONTEXT.as_bytes());
 
@@ -140,8 +144,29 @@ impl Ed25519KeyPair {
         let public = ed25519_dalek::PublicKey::from(&secret);
         Ok(Ed25519KeyPair(ed25519_dalek::Keypair { secret, public }))
     }
-    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> [u8; 64] {
+    pub fn sign_simple<T: AsRef<[u8]>>(&self, message: T) -> [u8; 64] {
         self.0.sign(message.as_ref()).to_bytes()
+    }
+    pub fn verify_simple<T: AsRef<[u8]>, S: AsRef<[u8]>>(
+        &self,
+        message: T,
+        signature: S,
+    ) -> Result<()> {
+        let sig = signature.as_ref();
+        if sig.len() != 64 {
+            // TODO
+            panic!()
+        }
+
+        let mut buffer = [0; 64];
+        buffer.copy_from_slice(sig);
+
+        Ok(ed25519_dalek::Verifier::verify(
+            &self.0,
+            message.as_ref(),
+            &ed25519_dalek::Signature::new(buffer),
+        )
+        .unwrap())
     }
     /// Consumes the keypair into the underlying type. The Ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -235,7 +260,7 @@ impl MultiKeyPair {
     }
     pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> MultiSignature {
         match self {
-            MultiKeyPair::Ed25519(signer) => MultiSignature::Ed25519(signer.sign(message)),
+            MultiKeyPair::Ed25519(signer) => MultiSignature::Ed25519(signer.sign_simple(message)),
             MultiKeyPair::Sr25519(signer) => MultiSignature::Sr25519(signer.sign_simple(message)),
             MultiKeyPair::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign(message)),
         }

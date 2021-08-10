@@ -61,6 +61,7 @@ impl Mortality {
     }
 }
 
+// TODO: Deprecate, just use AccountId
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum MultiAddress<AccountId, AccountIndex> {
     Id(AccountId),
@@ -77,8 +78,8 @@ pub enum MultiSignature {
     Ecdsa([u8; 65]),
 }
 
-impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
-    fn from(_signer: MultiSigner) -> Self {
+impl From<MultiKeyPair> for MultiAddress<AccountId32, ()> {
+    fn from(_signer: MultiKeyPair) -> Self {
         unimplemented!()
     }
 }
@@ -87,6 +88,8 @@ impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
 pub struct Sr25519KeyPair(schnorrkel::keys::Keypair);
 
 impl Sr25519KeyPair {
+    const SIGNING_CONTEXT: &'static str = "substrate";
+
     pub fn new() -> Self {
         Sr25519KeyPair(schnorrkel::keys::Keypair::generate())
     }
@@ -104,9 +107,19 @@ impl Sr25519KeyPair {
 
         Ok(Sr25519KeyPair(pair))
     }
-    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> [u8; 64] {
-        let context = signing_context(b"substrate");
+    pub fn sign_simple<T: AsRef<[u8]>>(&self, message: T) -> [u8; 64] {
+        let context = signing_context(Self::SIGNING_CONTEXT.as_bytes());
         self.0.sign(context.bytes(message.as_ref())).to_bytes()
+    }
+    pub fn verify_simple<T: AsRef<[u8]>, S: AsRef<[u8]>>(&self, message: T, signature: S) -> Result<()> {
+        let sig_parsed = schnorrkel::sign::Signature::from_bytes(signature.as_ref()).unwrap();
+        let context = signing_context(Self::SIGNING_CONTEXT.as_bytes());
+
+        Ok(self
+            .0
+            .public
+            .verify(context.bytes(message.as_ref()), &sig_parsed)
+            .unwrap())
     }
     /// Consumes the keypair into the underlying type. The Sr25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -189,13 +202,13 @@ impl EcdsaKeyPair {
 }
 
 #[derive(Debug)]
-pub enum MultiSigner {
+pub enum MultiKeyPair {
     Ed25519(Ed25519KeyPair),
     Sr25519(Sr25519KeyPair),
     Ecdsa(EcdsaKeyPair),
 }
 
-impl MultiSigner {
+impl MultiKeyPair {
     pub fn to_public_key(&self) -> Vec<u8> {
         // This method returns a vector rather than an array since public key
         // sizes vary in size.
@@ -222,28 +235,28 @@ impl MultiSigner {
     }
     pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> MultiSignature {
         match self {
-            MultiSigner::Ed25519(signer) => MultiSignature::Ed25519(signer.sign(message)),
-            MultiSigner::Sr25519(signer) => MultiSignature::Sr25519(signer.sign(message)),
-            MultiSigner::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign(message)),
+            MultiKeyPair::Ed25519(signer) => MultiSignature::Ed25519(signer.sign(message)),
+            MultiKeyPair::Sr25519(signer) => MultiSignature::Sr25519(signer.sign_simple(message)),
+            MultiKeyPair::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign(message)),
         }
     }
 }
 
-impl From<Sr25519KeyPair> for MultiSigner {
+impl From<Sr25519KeyPair> for MultiKeyPair {
     fn from(val: Sr25519KeyPair) -> Self {
-        MultiSigner::Sr25519(val)
+        MultiKeyPair::Sr25519(val)
     }
 }
 
-impl From<Ed25519KeyPair> for MultiSigner {
+impl From<Ed25519KeyPair> for MultiKeyPair {
     fn from(val: Ed25519KeyPair) -> Self {
-        MultiSigner::Ed25519(val)
+        MultiKeyPair::Ed25519(val)
     }
 }
 
-impl From<EcdsaKeyPair> for MultiSigner {
+impl From<EcdsaKeyPair> for MultiKeyPair {
     fn from(val: EcdsaKeyPair) -> Self {
-        MultiSigner::Ecdsa(val)
+        MultiKeyPair::Ecdsa(val)
     }
 }
 

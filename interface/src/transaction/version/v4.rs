@@ -1,5 +1,5 @@
 use crate::common::{
-    AccountId32, Balance, Mortality, MultiAddress, MultiSignature, MultiSigner, Network,
+    AccountId32, Balance, Mortality, MultiAddress, MultiKeyPair, MultiSignature, Network,
 };
 use crate::runtime::{kusama, polkadot};
 use crate::{blake2b, Error, Result};
@@ -78,7 +78,7 @@ pub type PolkadotSignedExtrinsic<Call> =
 
 #[derive(Debug)]
 pub struct ExtrinsicBuilder<Call> {
-    signer: Option<MultiSigner>,
+    signer: Option<MultiKeyPair>,
     call: Option<Call>,
     nonce: Option<u32>,
     payment: Option<Balance>,
@@ -106,7 +106,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         Default::default()
     }
     // TODO: should be Into<MultiAddress>
-    pub fn signer(self, signer: MultiSigner) -> Self {
+    pub fn signer(self, signer: MultiKeyPair) -> Self {
         Self {
             signer: Some(signer),
             ..self

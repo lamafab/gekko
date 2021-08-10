@@ -1,9 +1,11 @@
 use self::ss58format::{Ss58AddressFormat, Ss58Codec};
 use crate::blake2b;
+use ed25519_dalek::Signer;
 use ed25519_dalek::Keypair as EdKeypair;
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
-use secp256k1::{Secp256k1, SecretKey};
+use schnorrkel::signing_context;
+use secp256k1::{Secp256k1, SecretKey, Message};
 
 pub mod ss58format;
 
@@ -121,9 +123,46 @@ impl MultiSigner {
         AccountId32(pub_key)
     }
     pub fn to_ss58_address(&self, format: Ss58AddressFormat) -> String {
-        Ss58Codec::to_string_with_format(&self.to_account_id().0, format)
+        self.to_account_id().to_ss58_address(format)
+    }
+    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> MultiSignature {
+        match self {
+            MultiSigner::Ed25519(signer) => {
+                let sig = signer.sign(message.as_ref());
+                MultiSignature::Ed25519(sig.to_bytes())
+            }
+            MultiSigner::Sr25519(signer) => {
+                let context = signing_context(b"substrate");
+                let sig = signer.sign(context.bytes(message.as_ref()));
+                MultiSignature::Sr25519(sig.to_bytes())
+            }
+            MultiSigner::Ecdsa(signer) => {
+                let sig = {
+                    let message = blake2b(&message.as_ref());
+
+                    // TODO: Handle unwrap
+                    let parsed = Message::from_slice(&message).unwrap();
+                    let (recovery, sig) = Secp256k1::signing_only()
+                        .sign_recoverable(&parsed, &signer)
+                        .serialize_compact();
+
+                    let mut serialized: [u8; 65] = [0; 65];
+                    serialized[..64].copy_from_slice(&sig);
+                    serialized[64] = recovery.to_i32() as u8;
+                    serialized
+                };
+
+                MultiSignature::Ecdsa(sig)
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct AccountId32([u8; 32]);
+
+impl AccountId32 {
+    pub fn to_ss58_address(&self, format: Ss58AddressFormat) -> String {
+        Ss58Codec::to_string_with_format(&self.0, format)
+    }
+}

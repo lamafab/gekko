@@ -205,35 +205,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         let sig_payload = SignaturePayload::new(call, payload, extra);
 
         // Create signature.
-        let sig = match &signer {
-            MultiSigner::Ed25519(signer) => {
-                let sig = sig_payload.using_encoded(|payload| signer.sign(payload));
-                MultiSignature::Ed25519(sig.to_bytes())
-            }
-            MultiSigner::Sr25519(signer) => {
-                let context = signing_context(b"substrate");
-                let sig = sig_payload.using_encoded(|payload| signer.sign(context.bytes(payload)));
-                MultiSignature::Sr25519(sig.to_bytes())
-            }
-            MultiSigner::Ecdsa(signer) => {
-                let sig = sig_payload.using_encoded(|payload| {
-                    let message = blake2b(&payload);
-
-                    // TODO: Handle unwrap
-                    let parsed = Message::from_slice(&message).unwrap();
-                    let (recovery, sig) = Secp256k1::signing_only()
-                        .sign_recoverable(&parsed, &signer)
-                        .serialize_compact();
-
-                    let mut serialized: [u8; 65] = [0; 65];
-                    serialized[..64].copy_from_slice(&sig);
-                    serialized[64] = recovery.to_i32() as u8;
-                    serialized
-                });
-
-                MultiSignature::Ecdsa(sig)
-            }
-        };
+        let sig = sig_payload.using_encoded(|payload| signer.sign(payload));
 
         // Prepare all entries for the final extrinsic.
         let addr = signer.into();

@@ -1,22 +1,23 @@
 use self::ss58format::{Ss58AddressFormat, Ss58Codec};
 use crate::blake2b;
-use ed25519_dalek::Signer;
 use ed25519_dalek::Keypair as EdKeypair;
+use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
 use schnorrkel::signing_context;
-use secp256k1::{Secp256k1, SecretKey, Message};
+use secp256k1::rand::rngs::OsRng;
+use secp256k1::{Message, Secp256k1, SecretKey};
 
 pub mod ss58format;
 
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
 pub mod scale {
     pub use parity_scale_codec::*;
-    pub mod crypto {
-        pub use ed25519_dalek as ed25519;
-        pub use schnorrkel as sr25519;
-        pub use secp256k1;
-    }
+}
+pub mod crypto {
+    pub use ed25519_dalek as ed25519;
+    pub use schnorrkel as sr25519;
+    pub use secp256k1;
 }
 
 pub type Balance = u128;
@@ -84,10 +85,62 @@ impl From<MultiSigner> for MultiAddress<AccountId32, ()> {
 }
 
 #[derive(Debug)]
+pub struct Sr25519KeyPair(SrKeypair);
+
+impl Sr25519KeyPair {
+    pub fn new() -> Self {
+        Sr25519KeyPair(SrKeypair::generate())
+    }
+    /// Consumes the keypair into the underlying type. The sr25519 library is
+    /// exposed in the [common::crypto](crypto) module.
+    pub fn into_inner(self) -> SrKeypair {
+        self.0
+    }
+}
+
+#[derive(Debug)]
+pub struct Ed25519KeyPair(EdKeypair);
+
+impl Ed25519KeyPair {
+    pub fn new() -> Self {
+        unimplemented!()
+    }
+    /// Consumes the keypair into the underlying type. The ed25519 library is
+    /// exposed in the [common::crypto](crypto) module.
+    pub fn into_inner(self) -> EdKeypair {
+        self.0
+    }
+}
+
+#[derive(Debug)]
+pub struct EcdsaKeyPair {
+    secret: secp256k1::SecretKey,
+    public: secp256k1::PublicKey,
+}
+
+impl EcdsaKeyPair {
+    pub fn new() -> Self {
+        let engine = secp256k1::Secp256k1::signing_only();
+        let (secret, public) = engine
+            .generate_keypair(&mut OsRng::new().expect("Failed to generate random seed from OS"));
+
+        EcdsaKeyPair {
+            secret: secret,
+            public: public,
+        }
+    }
+    /// Consumes the keypair into the underlying type. The ecdsa library is
+    /// exposed in the [common::crypto](crypto) module.
+    pub fn into_inner(self) -> (secp256k1::SecretKey, secp256k1::PublicKey) {
+        (self.secret, self.public)
+    }
+}
+
+#[derive(Debug)]
 pub enum MultiSigner {
-    Ed25519(EdKeypair),
-    Sr25519(SrKeypair),
-    Ecdsa(SecretKey),
+    Ed25519(Ed25519KeyPair),
+    Sr25519(Sr25519KeyPair),
+    Ecdsa(EcdsaKeyPair),
 }
 
 impl MultiSigner {
@@ -95,28 +148,18 @@ impl MultiSigner {
         // This method returns a vector rather than an array since public key
         // sizes vary in size.
         match self {
-            Self::Ed25519(pair) => pair.public.to_bytes().to_vec(),
-            Self::Sr25519(pair) => pair.public.to_bytes().to_vec(),
-            Self::Ecdsa(sec_key) => {
-                secp256k1::key::PublicKey::from_secret_key(&Secp256k1::signing_only(), &sec_key)
-                    .serialize()
-                    .to_vec()
-            }
+            Self::Ed25519(pair) => pair.0.public.to_bytes().to_vec(),
+            Self::Sr25519(pair) => pair.0.public.to_bytes().to_vec(),
+            Self::Ecdsa(pair) => pair.public.serialize().to_vec(),
         }
     }
     pub fn to_account_id(&self) -> AccountId32 {
         let pub_key = match self {
-            Self::Ed25519(pair) => pair.public.to_bytes(),
-            Self::Sr25519(pair) => pair.public.to_bytes(),
-            Self::Ecdsa(sec_key) => {
-                let pub_key = secp256k1::key::PublicKey::from_secret_key(
-                    &Secp256k1::signing_only(),
-                    &sec_key,
-                )
-                .serialize();
-
+            Self::Ed25519(pair) => pair.0.public.to_bytes(),
+            Self::Sr25519(pair) => pair.0.public.to_bytes(),
+            Self::Ecdsa(pair) => {
                 // Hashed, since the ECDSA public key is 33 bytes.
-                blake2b(&pub_key)
+                blake2b(pair.public.serialize())
             }
         };
 
@@ -128,12 +171,12 @@ impl MultiSigner {
     pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> MultiSignature {
         match self {
             MultiSigner::Ed25519(signer) => {
-                let sig = signer.sign(message.as_ref());
+                let sig = signer.0.sign(message.as_ref());
                 MultiSignature::Ed25519(sig.to_bytes())
             }
             MultiSigner::Sr25519(signer) => {
                 let context = signing_context(b"substrate");
-                let sig = signer.sign(context.bytes(message.as_ref()));
+                let sig = signer.0.sign(context.bytes(message.as_ref()));
                 MultiSignature::Sr25519(sig.to_bytes())
             }
             MultiSigner::Ecdsa(signer) => {
@@ -143,7 +186,7 @@ impl MultiSigner {
                     // TODO: Handle unwrap
                     let parsed = Message::from_slice(&message).unwrap();
                     let (recovery, sig) = Secp256k1::signing_only()
-                        .sign_recoverable(&parsed, &signer)
+                        .sign_recoverable(&parsed, &signer.secret)
                         .serialize_compact();
 
                     let mut serialized: [u8; 65] = [0; 65];
@@ -165,4 +208,15 @@ impl AccountId32 {
     pub fn to_ss58_address(&self, format: Ss58AddressFormat) -> String {
         Ss58Codec::to_string_with_format(&self.0, format)
     }
+    /// Returns the underlying public key or the blake2b hash in case of ECDSA.
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl MultiSigner {}
 }

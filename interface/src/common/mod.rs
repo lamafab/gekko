@@ -104,6 +104,10 @@ impl Sr25519KeyPair {
 
         Ok(Sr25519KeyPair(pair))
     }
+    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> [u8; 64] {
+        let context = signing_context(b"substrate");
+        self.0.sign(context.bytes(message.as_ref())).to_bytes()
+    }
     /// Consumes the keypair into the underlying type. The Sr25519 library is
     /// exposed in the [common::crypto](crypto) module.
     pub fn into_inner(self) -> schnorrkel::keys::Keypair {
@@ -122,6 +126,9 @@ impl Ed25519KeyPair {
         let secret = ed25519_dalek::SecretKey::from_bytes(seed).unwrap();
         let public = ed25519_dalek::PublicKey::from(&secret);
         Ok(Ed25519KeyPair(ed25519_dalek::Keypair { secret, public }))
+    }
+    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> [u8; 64] {
+        self.0.sign(message.as_ref()).to_bytes()
     }
     /// Consumes the keypair into the underlying type. The Ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -158,6 +165,21 @@ impl EcdsaKeyPair {
             secret: secret,
             public: public,
         })
+    }
+    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> [u8; 65] {
+        // Message must be 32-bytes.
+        let message = blake2b(&message.as_ref());
+
+        // TODO: Handle unwrap
+        let parsed = Message::from_slice(&message).unwrap();
+        let (recovery, sig) = Secp256k1::signing_only()
+            .sign_recoverable(&parsed, &self.secret)
+            .serialize_compact();
+
+        let mut serialized: [u8; 65] = [0; 65];
+        serialized[..64].copy_from_slice(&sig);
+        serialized[64] = recovery.to_i32() as u8;
+        serialized
     }
     /// Consumes the keypair into the underlying type. The ECDSA library is
     /// exposed in the [common::crypto](crypto) module.
@@ -200,33 +222,9 @@ impl MultiSigner {
     }
     pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> MultiSignature {
         match self {
-            MultiSigner::Ed25519(signer) => {
-                let sig = signer.0.sign(message.as_ref());
-                MultiSignature::Ed25519(sig.to_bytes())
-            }
-            MultiSigner::Sr25519(signer) => {
-                let context = signing_context(b"substrate");
-                let sig = signer.0.sign(context.bytes(message.as_ref()));
-                MultiSignature::Sr25519(sig.to_bytes())
-            }
-            MultiSigner::Ecdsa(signer) => {
-                let sig = {
-                    let message = blake2b(&message.as_ref());
-
-                    // TODO: Handle unwrap
-                    let parsed = Message::from_slice(&message).unwrap();
-                    let (recovery, sig) = Secp256k1::signing_only()
-                        .sign_recoverable(&parsed, &signer.secret)
-                        .serialize_compact();
-
-                    let mut serialized: [u8; 65] = [0; 65];
-                    serialized[..64].copy_from_slice(&sig);
-                    serialized[64] = recovery.to_i32() as u8;
-                    serialized
-                };
-
-                MultiSignature::Ecdsa(sig)
-            }
+            MultiSigner::Ed25519(signer) => MultiSignature::Ed25519(signer.sign(message)),
+            MultiSigner::Sr25519(signer) => MultiSignature::Sr25519(signer.sign(message)),
+            MultiSigner::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign(message)),
         }
     }
 }
@@ -266,5 +264,6 @@ impl AccountId32 {
 mod tests {
     use super::*;
 
-    impl MultiSigner {}
+    #[test]
+    fn sr25519_from_seed() {}
 }

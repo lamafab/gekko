@@ -28,10 +28,11 @@ pub enum PrimitiveError {
     SchnorrkelSignature(schnorrkel::SignatureError),
     Ed25519Signature(ed25519_dalek::SignatureError),
     Secp256k1Signature(secp256k1::Error),
+    VerificationFailed,
     InvalidSignature,
+    InvalidSeed,
     InvalidKeySignatureMatch,
 }
-
 
 impl From<schnorrkel::SignatureError> for PrimitiveError {
     fn from(val: schnorrkel::SignatureError) -> Self {
@@ -129,7 +130,7 @@ impl Sr25519KeyPair {
                 MiniSecretKey::from_bytes(seed)?.expand_to_keypair(ExpansionMode::Ed25519)
             }
             SECRET_KEY_LENGTH => schnorrkel::SecretKey::from_bytes(seed)?.to_keypair(),
-            _ => panic!(),
+            _ => return Err(PrimitiveError::InvalidSeed),
         };
 
         Ok(Sr25519KeyPair(pair))
@@ -149,7 +150,7 @@ impl Sr25519KeyPair {
         self.0
             .public
             .verify(context.bytes(message.as_ref()), &sig_parsed)
-            .map_err(|_| PrimitiveError::InvalidSignature)
+            .map_err(|_| PrimitiveError::VerificationFailed)
     }
     /// Consumes the keypair into the underlying type. The Sr25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -180,8 +181,7 @@ impl Ed25519KeyPair {
     ) -> Result<()> {
         let sig = signature.as_ref();
         if sig.len() != 64 {
-            // TODO
-            panic!()
+            return Err(PrimitiveError::InvalidSignature)
         }
 
         let mut buffer = [0; 64];
@@ -192,7 +192,7 @@ impl Ed25519KeyPair {
             message.as_ref(),
             &ed25519_dalek::Signature::new(buffer),
         )
-        .map_err(|_| PrimitiveError::InvalidSignature)
+        .map_err(|_| PrimitiveError::VerificationFailed)
     }
     /// Consumes the keypair into the underlying type. The Ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -252,7 +252,6 @@ impl EcdsaKeyPair {
         // Message must be 32-bytes.
         let message = secp256k1::Message::from_slice(&blake2b(message.as_ref())).unwrap();
 
-        // TODO: Error message should specify compact encoding.
         let sig = signature.as_ref();
         let sig = secp256k1::Signature::from_compact({
             // Skip recovery byte, if present.
@@ -264,7 +263,7 @@ impl EcdsaKeyPair {
         })?;
 
         let engine = secp256k1::Secp256k1::verification_only();
-        engine.verify(&message, &sig, &self.public).map_err(|_| PrimitiveError::InvalidSignature)
+        engine.verify(&message, &sig, &self.public).map_err(|_| PrimitiveError::VerificationFailed)
     }
     /// Consumes the keypair into the underlying type. The ECDSA library is
     /// exposed in the [common::crypto](crypto) module.

@@ -1,9 +1,8 @@
-use crate::common::{
-    AccountId32, Balance, Mortality, MultiAddress, MultiKeyPair, MultiSignature, Network,
-};
+use crate::common::{AccountId32, Balance, Mortality, MultiKeyPair, MultiSignature, Network};
 use crate::runtime::{kusama, polkadot};
 use crate::{blake2b, Error, Result};
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
+use sp_core::crypto::Pair;
 
 pub const TX_VERSION: u32 = 4;
 
@@ -73,10 +72,9 @@ where
     }
 }
 
-pub type PolkadotSignedExtrinsic<Call> =
-    Transaction<MultiAddress<AccountId32, ()>, Call, MultiSignature, Payload>;
+pub type PolkadotSignedExtrinsic<Call> = Transaction<AccountId32, Call, MultiSignature, Payload>;
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct ExtrinsicBuilder<Call> {
     signer: Option<MultiKeyPair>,
     call: Option<Call>,
@@ -202,7 +200,11 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         let sig_payload = SignaturePayload::new(call, payload, extra);
 
         // Create signature.
-        let sig = sig_payload.using_encoded(|payload| signer.sign_simple(payload));
+        let sig = sig_payload.using_encoded(|payload| match &signer {
+            MultiKeyPair::Ed25519(pair) => pair.sign(payload).into(),
+            MultiKeyPair::Sr25519(pair) => pair.sign(payload).into(),
+            MultiKeyPair::Ecdsa(pair) => pair.sign(payload).into(),
+        });
 
         // Prepare all entries for the final extrinsic.
         let addr = signer.into();

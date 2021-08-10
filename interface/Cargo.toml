@@ -19,6 +19,7 @@ gekko-metadata = { version = "0.1.0", path = "../metadata", optional = true }
 parity-scale-codec = { version = "2.2.0", features = ["derive"] }
 hex = "0.4.3"
 base58 = "0.1.0"
+sp-core = "3.0.0"
 
 # Crypto utilities
 blake2-rfc = "0.2.18"

@@ -3,6 +3,7 @@ use crate::{blake2b, Result};
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
+use schnorrkel::keys::{MINI_SECRET_KEY_LENGTH, SECRET_KEY_LENGTH};
 use schnorrkel::{signing_context, ExpansionMode, MiniSecretKey};
 use secp256k1::{Message, Secp256k1};
 
@@ -90,11 +91,18 @@ impl Sr25519KeyPair {
         Sr25519KeyPair(schnorrkel::keys::Keypair::generate())
     }
     pub fn from_seed(seed: &[u8]) -> Result<Self> {
-        Ok(Sr25519KeyPair(
-            MiniSecretKey::from_bytes(seed)
+        // TODO: Handle unwraps.
+        let pair = match seed.len() {
+            MINI_SECRET_KEY_LENGTH => MiniSecretKey::from_bytes(seed)
                 .unwrap()
                 .expand_to_keypair(ExpansionMode::Ed25519),
-        ))
+            SECRET_KEY_LENGTH => schnorrkel::SecretKey::from_bytes(seed)
+                .unwrap()
+                .to_keypair(),
+            _ => panic!(),
+        };
+
+        Ok(Sr25519KeyPair(pair))
     }
     /// Consumes the keypair into the underlying type. The Sr25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -109,6 +117,9 @@ pub struct Ed25519KeyPair(ed25519_dalek::Keypair);
 impl Ed25519KeyPair {
     pub fn new() -> Self {
         Ed25519KeyPair(ed25519_dalek::Keypair::generate(&mut OsRng))
+    }
+    pub fn from_seed(seed: &[u8]) -> Result<Self> {
+        unimplemented!()
     }
     /// Consumes the keypair into the underlying type. The Ed25519 library is
     /// exposed in the [common::crypto](crypto) module.

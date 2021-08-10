@@ -6,6 +6,7 @@ use rand::rngs::OsRng;
 use schnorrkel::keys::{MINI_SECRET_KEY_LENGTH, SECRET_KEY_LENGTH};
 use schnorrkel::{signing_context, ExpansionMode, MiniSecretKey};
 use secp256k1::{Message, Secp256k1};
+use hex::FromHexError;
 
 pub mod ss58format;
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
@@ -32,6 +33,7 @@ pub enum PrimitiveError {
     InvalidSignature,
     InvalidSeed,
     InvalidKeySignatureMatch,
+    InvalidHex(FromHexError),
 }
 
 impl From<schnorrkel::SignatureError> for PrimitiveError {
@@ -49,6 +51,12 @@ impl From<ed25519_dalek::SignatureError> for PrimitiveError {
 impl From<secp256k1::Error> for PrimitiveError {
     fn from(val: secp256k1::Error) -> Self {
         PrimitiveError::Secp256k1Signature(val)
+    }
+}
+
+impl From<FromHexError> for PrimitiveError {
+    fn from(val: FromHexError) -> Self {
+        PrimitiveError::InvalidHex(val)
     }
 }
 
@@ -115,6 +123,18 @@ impl From<MultiKeyPair> for MultiAddress<AccountId32, ()> {
     }
 }
 
+fn decode_hex<T: AsRef<[u8]>>(data: T) -> Result<Vec<u8>> {
+    // The `hex` crate does not handle `0x`...
+    let data = data.as_ref();
+    let slice = if data.starts_with(b"0x") {
+        data[2..].as_ref()
+    } else {
+        data 
+    };
+
+    hex::decode(slice).map_err(|err| err.into())
+}
+
 #[derive(Debug)]
 pub struct Sr25519KeyPair(schnorrkel::keys::Keypair);
 
@@ -124,6 +144,10 @@ impl Sr25519KeyPair {
     pub fn new() -> Self {
         Sr25519KeyPair(schnorrkel::keys::Keypair::generate())
     }
+    pub fn from_hex_seed<T: AsRef<[u8]>>(seed: T) -> Result<Self> {
+        Self::from_seed(&decode_hex(seed)?)
+    }
+    // TODO: Should be T: AsRef<[u8]>
     pub fn from_seed(seed: &[u8]) -> Result<Self> {
         let pair = match seed.len() {
             MINI_SECRET_KEY_LENGTH => {
@@ -360,6 +384,19 @@ impl AccountId32 {
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0
     }
+    // TODO: Add method to extra public key.
+}
+
+impl From<Sr25519KeyPair> for AccountId32 {
+    fn from(val: Sr25519KeyPair) -> Self {
+        AccountId32(val.0.public.to_bytes())
+    }
+}
+
+impl From<Ed25519KeyPair> for AccountId32 {
+    fn from(val: Ed25519KeyPair) -> Self {
+        AccountId32(val.0.public.to_bytes())
+    }
 }
 
 #[cfg(test)]
@@ -367,5 +404,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sr25519_from_seed() {}
+    fn sr25519_from_seed() {
+        let pair = Sr25519KeyPair::from_hex_seed("0x9762a3e516f4a5d2aec10c5d6722440c000f8657f8106622b073662d76f82a7c").unwrap();
+    }
 }

@@ -2,8 +2,7 @@ use crate::common::{
     AccountId32, Balance, Mortality, MultiAddress, MultiSignature, MultiSigner, Network,
 };
 use crate::runtime::{kusama, polkadot};
-use crate::{Error, Result};
-use blake2_rfc::blake2b::blake2b;
+use crate::{blake2b, Error, Result};
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
 use schnorrkel::signing_context;
@@ -218,8 +217,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
             }
             MultiSigner::Ecdsa(signer) => {
                 let sig = sig_payload.using_encoded(|payload| {
-                    let mut message: [u8; 32] = [0; 32];
-                    message.copy_from_slice(&blake2b(32, &[], &payload).as_bytes());
+                    let message = blake2b(&payload);
 
                     // TODO: Handle unwrap
                     let parsed = Message::from_slice(&message).unwrap();
@@ -297,7 +295,7 @@ where
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
         (&self.call, &self.payload, &self.extra).using_encoded(|payload| {
             if payload.len() > 256 {
-                f(blake2b(32, &[], &payload).as_bytes())
+                f(&blake2b(&payload))
             } else {
                 f(payload)
             }

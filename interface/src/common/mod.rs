@@ -1,3 +1,5 @@
+use self::ss58format::{Ss58AddressFormat, Ss58Codec};
+use crate::blake2b;
 use ed25519_dalek::Keypair as EdKeypair;
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
@@ -9,9 +11,9 @@ pub mod ss58format;
 pub mod scale {
     pub use parity_scale_codec::*;
     pub mod crypto {
-        pub use secp256k1;
         pub use ed25519_dalek as ed25519;
         pub use schnorrkel as sr25519;
+        pub use secp256k1;
     }
 }
 
@@ -88,6 +90,8 @@ pub enum MultiSigner {
 
 impl MultiSigner {
     pub fn to_public_key(&self) -> Vec<u8> {
+        // This method returns a vector rather than an array since public key
+        // sizes vary in size.
         match self {
             Self::Ed25519(pair) => pair.public.to_bytes().to_vec(),
             Self::Sr25519(pair) => pair.public.to_bytes().to_vec(),
@@ -97,6 +101,27 @@ impl MultiSigner {
                     .to_vec()
             }
         }
+    }
+    pub fn to_account_id(&self) -> AccountId32 {
+        let pub_key = match self {
+            Self::Ed25519(pair) => pair.public.to_bytes(),
+            Self::Sr25519(pair) => pair.public.to_bytes(),
+            Self::Ecdsa(sec_key) => {
+                let pub_key = secp256k1::key::PublicKey::from_secret_key(
+                    &Secp256k1::signing_only(),
+                    &sec_key,
+                )
+                .serialize();
+
+                // Hashed, since the ECDSA public key is 33 bytes.
+                blake2b(&pub_key)
+            }
+        };
+
+        AccountId32(pub_key)
+    }
+    pub fn to_ss58_address(&self, format: Ss58AddressFormat) -> String {
+        Ss58Codec::to_string_with_format(&self.to_account_id().0, format)
     }
 }
 

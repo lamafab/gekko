@@ -34,17 +34,17 @@ use blake2_rfc::blake2b::Blake2b;
 pub trait Ss58Codec: Sized + AsMut<[u8]> + AsRef<[u8]> + Default {
     /// Converts the SS58 encoded string into the key.
     fn from_string(s: &str) -> Result<Self> {
-        Self::from_string_with_version(s).map(|(r, _)| r)
+        Self::from_string_with_format(s).map(|(r, _)| r)
     }
     /// Like `from_string`, but will return an error if the address format is `Ss58AddressFormat::Custom(_)`.
     fn from_string_reject_unknown(s: &str) -> Result<Self> {
-        Self::from_string_with_version(s).and_then(|(r, v)| match v {
+        Self::from_string_with_format(s).and_then(|(r, v)| match v {
             Ss58AddressFormat::Custom(_) => panic!(),
             _ => Ok(r),
         })
     }
     /// Converts the SS58 encoded string into the key. Additionally returns the identified address format.
-    fn from_string_with_version(s: &str) -> Result<(Self, Ss58AddressFormat)> {
+    fn from_string_with_format(s: &str) -> Result<(Self, Ss58AddressFormat)> {
         const CHECKSUM_LEN: usize = 2;
         let mut res = Self::default();
 
@@ -84,12 +84,13 @@ pub trait Ss58Codec: Sized + AsMut<[u8]> + AsRef<[u8]> + Default {
 
         res.as_mut()
             .copy_from_slice(&data[prefix_len..body_len + prefix_len]);
+
         Ok((res, format))
     }
     /// Returns the SS58 encoded string of the key.
-    fn to_string_with_version(&self, version: Ss58AddressFormat) -> String {
+    fn to_string_with_format(&self, format: Ss58AddressFormat) -> String {
         // We mask out the upper two bits of the ident - SS58 Prefix currently only supports 14-bits
-        let ident: u16 = u16::from(version) & 0b0011_1111_1111_1111;
+        let ident: u16 = u16::from(format) & 0b0011_1111_1111_1111;
         let mut v = match ident {
             0..=63 => vec![ident as u8],
             64..=16_383 => {
@@ -117,6 +118,8 @@ fn ss58hash(data: &[u8]) -> blake2_rfc::blake2b::Blake2bResult {
     context.update(data);
     context.finalize()
 }
+
+impl<T> Ss58Codec for T where T: Sized + AsMut<[u8]> + AsRef<[u8]> + Default {}
 
 macro_rules! ss58_address_format {
 	( $( $identifier:tt => ($number:expr, $name:expr, $desc:tt) )* ) => (

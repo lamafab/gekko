@@ -41,3 +41,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     BuilderMissingField(&'static str),
 }
+
+/// Convenience function for crate internals.
+fn blake2b<T: AsRef<[u8]>>(payload: T) -> [u8; 32] {
+    let mut hash = [0; 32];
+    hash.copy_from_slice(blake2_rfc::blake2b::blake2b(32, &[], payload.as_ref()).as_bytes());
+    hash
+}

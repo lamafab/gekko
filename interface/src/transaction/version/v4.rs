@@ -7,7 +7,7 @@ use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
 use schnorrkel::signing_context;
-use secp256k1::{Message, Secp256k1, SignOnly};
+use secp256k1::{Message, Secp256k1};
 
 pub const TX_VERSION: u32 = 4;
 

@@ -8,6 +8,11 @@ pub mod ss58format;
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
 pub mod scale {
     pub use parity_scale_codec::*;
+    pub mod crypto {
+        pub use secp256k1;
+        pub use ed25519_dalek as ed25519;
+        pub use schnorrkel as sr25519;
+    }
 }
 
 pub type Balance = u128;
@@ -82,11 +87,15 @@ pub enum MultiSigner {
 }
 
 impl MultiSigner {
-    pub fn to_public_key(&self) -> [u8; 32] {
+    pub fn to_public_key(&self) -> Vec<u8> {
         match self {
-            Self::Ed25519(pair) => pair.public.to_bytes(),
-            Self::Sr25519(pair) => pair.public.to_bytes(),
-            _ => panic!(),
+            Self::Ed25519(pair) => pair.public.to_bytes().to_vec(),
+            Self::Sr25519(pair) => pair.public.to_bytes().to_vec(),
+            Self::Ecdsa(sec_key) => {
+                secp256k1::key::PublicKey::from_secret_key(&Secp256k1::signing_only(), &sec_key)
+                    .serialize()
+                    .to_vec()
+            }
         }
     }
 }

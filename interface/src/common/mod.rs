@@ -1,7 +1,5 @@
 use self::ss58format::{Ss58AddressFormat, Ss58Codec};
-use crate::{blake2b, Error};
 use parity_scale_codec::{Decode, Encode};
-use sp_core::crypto::Pair;
 
 pub mod ss58format;
 /// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.

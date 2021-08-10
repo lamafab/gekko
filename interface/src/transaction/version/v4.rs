@@ -75,7 +75,7 @@ where
 pub type PolkadotSignedExtrinsic<Call> = Transaction<AccountId32, Call, MultiSignature, Payload>;
 
 #[derive(Clone)]
-pub struct ExtrinsicBuilder<Call> {
+pub struct SignedTransactionBuilder<Call> {
     signer: Option<MultiKeyPair>,
     call: Option<Call>,
     nonce: Option<u32>,
@@ -85,7 +85,7 @@ pub struct ExtrinsicBuilder<Call> {
     spec_version: Option<u32>,
 }
 
-impl<Call> Default for ExtrinsicBuilder<Call> {
+impl<Call> Default for SignedTransactionBuilder<Call> {
     fn default() -> Self {
         Self {
             signer: None,
@@ -99,14 +99,13 @@ impl<Call> Default for ExtrinsicBuilder<Call> {
     }
 }
 
-impl<Call: Encode> ExtrinsicBuilder<Call> {
+impl<Call: Encode> SignedTransactionBuilder<Call> {
     pub fn new() -> Self {
         Default::default()
     }
-    // TODO: should be Into<MultiAddress>
-    pub fn signer(self, signer: MultiKeyPair) -> Self {
+    pub fn signer<T: Into<MultiKeyPair>>(self, signer: MultiKeyPair) -> Self {
         Self {
-            signer: Some(signer),
+            signer: Some(signer.into()),
             ..self
         }
     }

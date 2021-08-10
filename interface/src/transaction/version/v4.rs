@@ -5,9 +5,9 @@ use crate::runtime::{kusama, polkadot};
 use crate::{Error, Result};
 use blake2_rfc::blake2b::blake2b;
 use ed25519_dalek::Signer;
-use parity_scale_codec::{Decode, Encode, Input, Error as ScaleError};
+use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
 use schnorrkel::signing_context;
-use secp256k1::Message;
+use secp256k1::{Message, Secp256k1, SignOnly};
 
 pub const TX_VERSION: u32 = 4;
 
@@ -20,12 +20,12 @@ pub struct Transaction<Address, Call, Signature, ExtraSignaturePayload> {
 }
 
 impl<Address, Call, Signature, ExtraSignaturePayload> Encode
-	for Transaction<Address, Call, Signature, ExtraSignaturePayload>
+    for Transaction<Address, Call, Signature, ExtraSignaturePayload>
 where
-	Address: Encode,
-	Signature: Encode,
-	Call: Encode,
-	ExtraSignaturePayload: Encode,
+    Address: Encode,
+    Signature: Encode,
+    Call: Encode,
+    ExtraSignaturePayload: Encode,
 {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
         let mut enc: Vec<u8> = Vec::with_capacity(std::mem::size_of::<Self>());
@@ -51,31 +51,29 @@ where
 }
 
 impl<Address, Call, Signature, ExtraSignaturePayload> Decode
-	for Transaction<Address, Call, Signature, ExtraSignaturePayload>
+    for Transaction<Address, Call, Signature, ExtraSignaturePayload>
 where
-	Address: Decode,
-	Signature: Decode,
-	Call: Decode,
-	ExtraSignaturePayload: Decode,
+    Address: Decode,
+    Signature: Decode,
+    Call: Decode,
+    ExtraSignaturePayload: Decode,
 {
-	fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, ScaleError> {
+    fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, ScaleError> {
         // Throw away that compact integer which indicates the array length.
-		let _: Vec<()> = Decode::decode(input)?;
+        let _: Vec<()> = Decode::decode(input)?;
 
         // Determine transaction version, handle signed/unsigned variant.
         // See the `Encode` implementation on why those values are used.
-		let sig = match input.read_byte()? {
+        let sig = match input.read_byte()? {
             132 => Some(Decode::decode(input)?),
             4 => None,
-            _ => return Err("Invalid transaction version".into())
+            _ => return Err("Invalid transaction version".into()),
         };
 
-        Ok(
-            Self {
-                signature: sig,
-                call: Decode::decode(input)?,
-            }
-        )
+        Ok(Self {
+            signature: sig,
+            call: Decode::decode(input)?,
+        })
     }
 }
 
@@ -223,12 +221,15 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
                     let mut message: [u8; 32] = [0; 32];
                     message.copy_from_slice(&blake2b(32, &[], &payload).as_bytes());
 
-                    let parsed = Message::parse(&message);
-                    let (sig, rec) = secp256k1::sign(&parsed, &signer);
+                    // TODO: Handle unwrap
+                    let parsed = Message::from_slice(&message).unwrap();
+                    let (recovery, sig) = Secp256k1::signing_only()
+                        .sign_recoverable(&parsed, &signer)
+                        .serialize_compact();
 
                     let mut serialized: [u8; 65] = [0; 65];
-                    serialized[..64].copy_from_slice(&sig.serialize());
-                    serialized[64] = rec.serialize();
+                    serialized[..64].copy_from_slice(&sig);
+                    serialized[64] = recovery.to_i32() as u8;
                     serialized
                 });
 
@@ -316,13 +317,13 @@ mod tests {
         struct SomeExtrinsic {
             a: u32,
             b: String,
-            c: Vec<u32>
+            c: Vec<u32>,
         }
 
         let call = SomeExtrinsic {
             a: 10,
             b: "some".to_string(),
-            c: vec![20, 30, 40]
+            c: vec![20, 30, 40],
         };
 
         let transaction = UnsignedTransaction {

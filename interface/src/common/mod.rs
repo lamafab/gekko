@@ -1,7 +1,7 @@
 use ed25519_dalek::Keypair as EdKeypair;
 use parity_scale_codec::{Decode, Encode};
 use schnorrkel::keys::Keypair as SrKeypair;
-use secp256k1::SecretKey;
+use secp256k1::{Secp256k1, SecretKey};
 
 pub mod ss58format;
 
@@ -79,6 +79,16 @@ pub enum MultiSigner {
     Ed25519(EdKeypair),
     Sr25519(SrKeypair),
     Ecdsa(SecretKey),
+}
+
+impl MultiSigner {
+    pub fn to_public_key(&self) -> [u8; 32] {
+        match self {
+            Self::Ed25519(pair) => pair.public.to_bytes(),
+            Self::Sr25519(pair) => pair.public.to_bytes(),
+            _ => panic!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]

@@ -3,9 +3,9 @@ use crate::blake2b;
 use ed25519_dalek::Keypair as EdKeypair;
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
+use rand::rngs::OsRng;
 use schnorrkel::keys::Keypair as SrKeypair;
 use schnorrkel::signing_context;
-use secp256k1::rand::rngs::OsRng;
 use secp256k1::{Message, Secp256k1, SecretKey};
 
 pub mod ss58format;
@@ -103,7 +103,7 @@ pub struct Ed25519KeyPair(EdKeypair);
 
 impl Ed25519KeyPair {
     pub fn new() -> Self {
-        unimplemented!()
+        Ed25519KeyPair(EdKeypair::generate(&mut OsRng))
     }
     /// Consumes the keypair into the underlying type. The ed25519 library is
     /// exposed in the [common::crypto](crypto) module.
@@ -121,8 +121,10 @@ pub struct EcdsaKeyPair {
 impl EcdsaKeyPair {
     pub fn new() -> Self {
         let engine = secp256k1::Secp256k1::signing_only();
-        let (secret, public) = engine
-            .generate_keypair(&mut OsRng::new().expect("Failed to generate random seed from OS"));
+        let (secret, public) = engine.generate_keypair(
+            &mut secp256k1::rand::rngs::OsRng::new()
+                .expect("Failed to generate random seed from OS"),
+        );
 
         EcdsaKeyPair {
             secret: secret,

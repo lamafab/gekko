@@ -202,7 +202,7 @@ impl<Call: Encode> ExtrinsicBuilder<Call> {
         let sig_payload = SignaturePayload::new(call, payload, extra);
 
         // Create signature.
-        let sig = sig_payload.using_encoded(|payload| signer.sign(payload));
+        let sig = sig_payload.using_encoded(|payload| signer.sign_simple(payload));
 
         // Prepare all entries for the final extrinsic.
         let addr = signer.into();

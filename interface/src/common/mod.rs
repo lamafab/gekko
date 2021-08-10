@@ -1,5 +1,5 @@
 use self::ss58format::{Ss58AddressFormat, Ss58Codec};
-use crate::{blake2b, Result};
+use crate::{blake2b, Error, Result};
 use ed25519_dalek::Signer;
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
@@ -230,7 +230,7 @@ impl EcdsaKeyPair {
         // TODO: Error message should specify compact encoding.
         let sig = signature.as_ref();
         let sig = secp256k1::Signature::from_compact({
-            // Handle recovery byte.
+            // Skip recovery byte, if present.
             if sig.len() == 65 {
                 &sig[0..64]
             } else {
@@ -281,11 +281,30 @@ impl MultiKeyPair {
     pub fn to_ss58_address(&self, format: Ss58AddressFormat) -> String {
         self.to_account_id().to_ss58_address(format)
     }
-    pub fn sign<T: AsRef<[u8]>>(&self, message: T) -> MultiSignature {
+    pub fn sign_simple<T: AsRef<[u8]>>(&self, message: T) -> MultiSignature {
         match self {
-            MultiKeyPair::Ed25519(signer) => MultiSignature::Ed25519(signer.sign_simple(message)),
-            MultiKeyPair::Sr25519(signer) => MultiSignature::Sr25519(signer.sign_simple(message)),
-            MultiKeyPair::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign_simple(message)),
+            Self::Ed25519(signer) => MultiSignature::Ed25519(signer.sign_simple(message)),
+            Self::Sr25519(signer) => MultiSignature::Sr25519(signer.sign_simple(message)),
+            Self::Ecdsa(signer) => MultiSignature::Ecdsa(signer.sign_simple(message)),
+        }
+    }
+    pub fn verify_simple<T: AsRef<[u8]>>(
+        &self,
+        message: T,
+        signature: MultiSignature,
+    ) -> Result<()> {
+        match (self, signature) {
+            (Self::Ed25519(signer), MultiSignature::Ed25519(sig)) => {
+                signer.verify_simple(message.as_ref(), sig)
+            }
+            (Self::Sr25519(signer), MultiSignature::Sr25519(sig)) => {
+                signer.verify_simple(message.as_ref(), sig)
+            }
+            (Self::Ecdsa(signer), MultiSignature::Ecdsa(sig)) => {
+                signer.verify_simple(message.as_ref(), sig)
+            }
+            // TODO: Change error type
+            _ => Err(Error::BuilderMissingField("")),
         }
     }
 }

@@ -82,8 +82,25 @@ pub struct Currency {
 
 impl Currency {
     pub fn to_metric(&self, metric: MetricPrefix) -> Self {
+        // Converts negative number to positive.
+        fn pos(n: i128) -> u128 {
+            let n = if n < 0 { n * -1 } else { n };
+            n as u128
+        }
+
+        let new_metric = metric as i128;
+        let prev_metric = self.metric as i128;
+
+        let balance = if new_metric > prev_metric {
+            let diff = pos(new_metric) / pos(prev_metric);
+            self.balance / diff
+        } else {
+            let diff = pos(new_metric) * pos(prev_metric);
+            self.balance.saturating_mul(diff)
+        };
+
         Currency {
-            balance: self.balance / (metric as u128 / self.metric as u128),
+            balance: balance,
             metric: metric,
         }
     }
@@ -95,20 +112,35 @@ impl Currency {
     }
 }
 
+#[test]
+fn balance_builder() {
+    let dot: Currency = BalanceBuilder::new(Network::Polkadot)
+        .unwrap()
+        .balance(50_000);
+
+    assert_eq!(dot.to_u128(), BalanceBuilder::DOT_UNIT * 50_000);
+
+    let kdot = dot.to_metric(MetricPrefix::Kilo);
+    assert_eq!(kdot.to_u128(), BalanceBuilder::DOT_UNIT * 50);
+
+    let mdot = dot.to_metric(MetricPrefix::Milli);
+    assert_eq!(mdot.to_u128(), BalanceBuilder::DOT_UNIT * 50_000_000);
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[rustfmt::skip]
 pub enum MetricPrefix {
-    Peta  = 10^15,
-    Tera  = 10^12,
-    Giga  = 10^9,
-    Mega  = 10^6,
-    Kilo  = 10^3,
-    One   = 1,
-    Milli = 10^-3,
-    Micro = 10^-6,
-    Nano  = 10^-9,
-    Pico  = 10^-12,
-    Femto = 10^-15,
+    Peta  =  1_000_000_000_000_000,
+    Tera  =  1_000_000_000_000,
+    Giga  =  1_000_000_000,
+    Mega  =  1_000_000,
+    Kilo  =  1_000,
+    One   =  1,
+    Milli = -1_000,
+    Micro = -1_000_000,
+    Nano  = -1_000_000_000,
+    Pico  = -1_000_000_000_000,
+    Femto = -1_000_000_000_000_000,
 }
 
 pub struct KeyPairBuilder<T>(std::marker::PhantomData<T>);

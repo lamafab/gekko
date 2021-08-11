@@ -192,16 +192,18 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
                 .ok_or(Error::BuilderMissingField("spec_version"))?,
         };
 
-        let mortality = match self.mortality {
+        let birth = match self.mortality {
             Mortality::Immortal => network.genesis(),
-            Mortality::Mortal(_, _, birth) => birth,
+            Mortality::Mortal(_, _, birth) => {
+                birth.ok_or(Error::BuilderMissingField("no birth block in Mortality"))?
+            }
         };
 
         let extra = ExtraSignaturePayload {
             spec_version: spec_version,
             tx_version: TX_VERSION,
             genesis: network.genesis(),
-            mortality: mortality,
+            birth: birth,
         };
 
         // Create the full signature payload.
@@ -242,7 +244,7 @@ pub struct ExtraSignaturePayload {
     /// The block hash from where the period of mortality begins. If the
     /// transaction is immortal, it's the genesis hash. See [Mortality] for more
     /// information.
-    pub mortality: [u8; 32],
+    pub birth: [u8; 32],
 }
 
 pub struct SignaturePayload<Call, Payload, ExtraSignaturePayload> {

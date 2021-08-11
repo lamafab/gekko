@@ -1,4 +1,4 @@
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Input};
 use sp_core::crypto::{Pair, Ss58AddressFormat, Ss58Codec};
 
 /// Reexport of the SCALE codec crate.
@@ -36,7 +36,6 @@ impl Network {
 }
 
 pub struct BalanceBuilder;
-
 impl BalanceBuilder {
     const DOT_UNIT: u128 = 10_000_000_000;
     const KSM_UNIT: u128 = 1_000_000_000_000;
@@ -61,6 +60,7 @@ pub struct BalanceWithUnit {
 }
 
 impl BalanceWithUnit {
+    // TODO: Consider removing this. Metric should be explicit.
     pub fn balance(self, balance: u128) -> Balance {
         self.balance_as_metric(Metric::Base, balance)
     }
@@ -124,6 +124,7 @@ fn balance_builder() {
     assert_eq!(dot.balance_native(), BalanceBuilder::DOT_UNIT * 50_000);
 }
 
+// TODO: Add convenience handlers for DOT/KSM.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[rustfmt::skip]
 pub enum Metric {
@@ -182,12 +183,66 @@ impl From<Ecdsa> for MultiKeyPair {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 // TODO: Custom Encode/Decode implementation. See https://substrate.dev/rustdocs/latest/sp_runtime/generic/enum.Era.html
 pub enum Mortality {
     Immortal,
-    // TODO: Also needs period and phase.
-    Mortal(u64, u64, [u8; 32]),
+    Mortal(u64, u64, Option<[u8; 32]>),
+}
+
+impl Encode for Mortality {
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        // The code within this block was copied from the
+        // [Substrate](https://github.com/paritytech/substrate) project, created
+        // by Parity Technologies. The copied code is slightly modified. The
+        // author of this library takes no credit for the copied code and fully
+        // complies with the license of the copied code.
+        //
+        // Copyright (C) 2017-2021 Parity Technologies (UK) Ltd.
+        // SPDX-License-Identifier: Apache-2.0
+
+        let mut enc = Vec::with_capacity(2);
+
+        match self {
+            Self::Immortal => enc.push(0),
+            Self::Mortal(period, phase, _) => {
+                let quantize_factor = (*period as u64 >> 12).max(1);
+                let encoded = (period.trailing_zeros() - 1).max(1).min(15) as u16
+                    | ((phase / quantize_factor) << 4) as u16;
+                encoded.encode_to(&mut enc);
+            }
+        }
+
+        f(&enc)
+    }
+}
+
+impl Decode for Mortality {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+        // The code within this block was copied from the
+        // [Substrate](https://github.com/paritytech/substrate) project, created
+        // by Parity Technologies. The copied code is slightly modified. The
+        // author of this library takes no credit for the copied code and fully
+        // complies with the license of the copied code.
+        //
+        // Copyright (C) 2017-2021 Parity Technologies (UK) Ltd.
+        // SPDX-License-Identifier: Apache-2.0
+
+        let first = input.read_byte()?;
+        if first == 0 {
+            Ok(Self::Immortal)
+        } else {
+            let encoded = first as u64 + ((input.read_byte()? as u64) << 8);
+            let period = 2 << (encoded % (1 << 4));
+            let quantize_factor = (period >> 12).max(1);
+            let phase = (encoded >> 4) * quantize_factor;
+            if period >= 4 && phase < period {
+                Ok(Self::Mortal(period, phase, None))
+            } else {
+                Err("Invalid period and phase".into())
+            }
+        }
+    }
 }
 
 impl Mortality {

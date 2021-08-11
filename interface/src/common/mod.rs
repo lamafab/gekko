@@ -46,6 +46,7 @@ impl BalanceBuilder {
         let unit = match network {
             Network::Polkadot => Self::DOT_UNIT,
             Network::Kusama => Self::KSM_UNIT,
+            // TODO
             _ => panic!(),
         };
 
@@ -62,14 +63,12 @@ pub struct BalanceBuilderWithNetwork {
 
 impl BalanceBuilderWithNetwork {
     pub fn balance(self, balance: u128) -> Currency {
-        self.balance_with_metric(MetricPrefix::One, balance)
+        self.balance_as_metric(Metric::One, balance)
     }
-    pub fn balance_with_metric(self, metric: MetricPrefix, balance: u128) -> Currency {
+    pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Currency {
         Currency {
-            balance: balance
-                .saturating_mul(metric as u128)
-                .saturating_mul(self.unit),
-            metric: metric,
+            balance: convert_metrics(metric, Metric::One, balance).saturating_mul(self.unit),
+            unit: self.unit,
         }
     }
 }
@@ -77,38 +76,36 @@ impl BalanceBuilderWithNetwork {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Currency {
     balance: u128,
-    metric: MetricPrefix,
+    unit: u128,
 }
 
 impl Currency {
-    pub fn to_metric(&self, metric: MetricPrefix) -> Self {
-        // Converts negative number to positive.
-        fn pos(n: i128) -> u128 {
-            let n = if n < 0 { n * -1 } else { n };
-            n as u128
-        }
-
-        let new_metric = metric as i128;
-        let prev_metric = self.metric as i128;
-
-        let balance = if new_metric > prev_metric {
-            let diff = pos(new_metric) / pos(prev_metric);
-            self.balance / diff
-        } else {
-            let diff = pos(new_metric) * pos(prev_metric);
-            self.balance.saturating_mul(diff)
-        };
-
-        Currency {
-            balance: balance,
-            metric: metric,
-        }
-    }
-    pub fn get_metric(&self) -> MetricPrefix {
-        self.metric
-    }
-    pub fn to_u128(&self) -> u128 {
+    pub fn balance_native(&self) -> u128 {
         self.balance
+    }
+    pub fn balance(&self, metric: Metric) -> u128 {
+        convert_metrics(Metric::One, metric, self.balance) / self.unit
+    }
+}
+
+fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> u128 {
+    // Converts negative number to positive.
+    fn pos(n: i128) -> u128 {
+        let n = if n < 0 { n * -1 } else { n };
+        n as u128
+    }
+
+    let prev_metric = prev_metric as i128;
+    let new_metric = new_metric as i128;
+
+    if new_metric > prev_metric {
+        let diff = pos(new_metric) / pos(prev_metric);
+        balance / diff
+    } else if new_metric < prev_metric {
+        let diff = pos(new_metric) * pos(prev_metric);
+        balance.saturating_mul(diff)
+    } else {
+        balance
     }
 }
 
@@ -118,18 +115,19 @@ fn balance_builder() {
         .unwrap()
         .balance(50_000);
 
-    assert_eq!(dot.to_u128(), BalanceBuilder::DOT_UNIT * 50_000);
+    // Convert DOT to micro-DOT.
+    assert_eq!(dot.balance(Metric::Micro), 50_000 * 1_000_000);
+    assert_eq!(dot.balance(Metric::Milli), 50_000 * 1_000);
+    assert_eq!(dot.balance(Metric::One), 50_000);
+    assert_eq!(dot.balance(Metric::Kilo), 50_000 / 1_000);
+    assert_eq!(dot.balance(Metric::Mega), 0);
 
-    let kdot = dot.to_metric(MetricPrefix::Kilo);
-    assert_eq!(kdot.to_u128(), BalanceBuilder::DOT_UNIT * 50);
-
-    let mdot = dot.to_metric(MetricPrefix::Milli);
-    assert_eq!(mdot.to_u128(), BalanceBuilder::DOT_UNIT * 50_000_000);
+    assert_eq!(dot.balance_native(), BalanceBuilder::DOT_UNIT * 50_000);
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[rustfmt::skip]
-pub enum MetricPrefix {
+pub enum Metric {
     Peta  =  1_000_000_000_000_000,
     Tera  =  1_000_000_000_000,
     Giga  =  1_000_000_000,

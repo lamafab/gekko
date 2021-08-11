@@ -112,7 +112,7 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
     pub fn new() -> Self {
         Default::default()
     }
-    pub fn signer<T: Into<MultiKeyPair>>(self, signer: MultiKeyPair) -> Self {
+    pub fn signer<T: Into<MultiKeyPair>>(self, signer: T) -> Self {
         Self {
             signer: Some(signer.into()),
             ..self
@@ -284,10 +284,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use sp_core::crypto::UncheckedInto;
+
     use super::*;
+    use crate::common::*;
 
     #[test]
-    fn transaction_encode_decode() {
+    fn transaction_encode_decode_unsigned() {
         #[derive(Debug, Eq, PartialEq, Encode, Decode)]
         struct SomeExtrinsic {
             a: u32,
@@ -302,6 +305,38 @@ mod tests {
         };
 
         let transaction = Transaction::new_unsigned(call);
+
+        let encoded = transaction.encode();
+        let decoded = Decode::decode(&mut encoded.as_ref()).unwrap();
+
+        assert_eq!(transaction, decoded);
+    }
+
+    #[test]
+    fn transaction_encode_decode_signed() {
+        #[derive(Debug, Eq, PartialEq, Encode, Decode)]
+        struct SomeExtrinsic {
+            a: u32,
+            b: String,
+            c: Vec<u32>,
+        }
+
+        let call = SomeExtrinsic {
+            a: 10,
+            b: "some".to_string(),
+            c: vec![20, 30, 40],
+        };
+
+        let (keypair, _) = KeyPairBuilder::<Sr25519>::generate();
+
+        let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
+            .signer(keypair)
+            .call(call)
+            .nonce(0)
+            .payment(1_000_000)
+            .network(Network::Polkadot)
+            .build()
+            .unwrap();
 
         let encoded = transaction.encode();
         let decoded = Decode::decode(&mut encoded.as_ref()).unwrap();

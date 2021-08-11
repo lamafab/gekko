@@ -52,7 +52,7 @@ impl BalanceBuilder {
 
         Ok(BalanceBuilderWithNetwork { unit: unit })
     }
-    pub fn new_custom(unit: u128) -> BalanceBuilderWithNetwork {
+    pub fn custom_unit(unit: u128) -> BalanceBuilderWithNetwork {
         BalanceBuilderWithNetwork { unit: unit }
     }
 }
@@ -83,7 +83,7 @@ impl Currency {
     pub fn balance_native(&self) -> u128 {
         self.balance
     }
-    pub fn balance(&self, metric: Metric) -> u128 {
+    pub fn balance_as(&self, metric: Metric) -> u128 {
         convert_metrics(Metric::One, metric, self.balance) / self.unit
     }
 }
@@ -116,11 +116,11 @@ fn balance_builder() {
         .balance(50_000);
 
     // Convert DOT to micro-DOT.
-    assert_eq!(dot.balance(Metric::Micro), 50_000 * 1_000_000);
-    assert_eq!(dot.balance(Metric::Milli), 50_000 * 1_000);
-    assert_eq!(dot.balance(Metric::One), 50_000);
-    assert_eq!(dot.balance(Metric::Kilo), 50_000 / 1_000);
-    assert_eq!(dot.balance(Metric::Mega), 0);
+    assert_eq!(dot.balance_as(Metric::Micro), 50_000 * 1_000_000);
+    assert_eq!(dot.balance_as(Metric::Milli), 50_000 * 1_000);
+    assert_eq!(dot.balance_as(Metric::One), 50_000);
+    assert_eq!(dot.balance_as(Metric::Kilo), 50_000 / 1_000);
+    assert_eq!(dot.balance_as(Metric::Mega), 0);
 
     assert_eq!(dot.balance_native(), BalanceBuilder::DOT_UNIT * 50_000);
 }

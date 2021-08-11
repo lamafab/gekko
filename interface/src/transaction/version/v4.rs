@@ -194,7 +194,7 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
 
         let mortality = match self.mortality {
             Mortality::Immortal => network.genesis(),
-            Mortality::Mortal(birth) => birth,
+            Mortality::Mortal(_, _, birth) => birth,
         };
 
         let extra = ExtraSignaturePayload {

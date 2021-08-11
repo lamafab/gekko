@@ -12,6 +12,7 @@ pub type Ed25519 = sp_core::ed25519::Pair;
 pub type Ecdsa = sp_core::ecdsa::Pair;
 
 #[derive(Debug, Clone, Copy)]
+// TODO: Rename to "Chain" or "Blockchain"?
 pub enum Network {
     Polkadot,
     Kusama,
@@ -33,6 +34,81 @@ impl Network {
         hex::decode_to_slice(hash_str, &mut genesis).unwrap();
         genesis
     }
+}
+
+pub struct BalanceBuilder;
+
+impl BalanceBuilder {
+    const DOT_UNIT: u128 = 10_000_000_000;
+    const KSM_UNIT: u128 = 1_000_000_000_000;
+
+    pub fn new(network: Network) -> Result<BalanceBuilderWithNetwork, ()> {
+        let unit = match network {
+            Network::Polkadot => Self::DOT_UNIT,
+            Network::Kusama => Self::KSM_UNIT,
+            _ => panic!(),
+        };
+
+        Ok(BalanceBuilderWithNetwork { unit: unit })
+    }
+    pub fn new_custom(unit: u128) -> BalanceBuilderWithNetwork {
+        BalanceBuilderWithNetwork { unit: unit }
+    }
+}
+
+pub struct BalanceBuilderWithNetwork {
+    unit: u128,
+}
+
+impl BalanceBuilderWithNetwork {
+    pub fn balance(self, balance: u128) -> Currency {
+        self.balance_with_metric(MetricPrefix::One, balance)
+    }
+    pub fn balance_with_metric(self, metric: MetricPrefix, balance: u128) -> Currency {
+        Currency {
+            balance: balance
+                .saturating_mul(metric as u128)
+                .saturating_mul(self.unit),
+            metric: metric,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct Currency {
+    balance: u128,
+    metric: MetricPrefix,
+}
+
+impl Currency {
+    pub fn to_metric(&self, metric: MetricPrefix) -> Self {
+        Currency {
+            balance: self.balance / (metric as u128 / self.metric as u128),
+            metric: metric,
+        }
+    }
+    pub fn get_metric(&self) -> MetricPrefix {
+        self.metric
+    }
+    pub fn to_u128(&self) -> u128 {
+        self.balance
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[rustfmt::skip]
+pub enum MetricPrefix {
+    Peta  = 10^15,
+    Tera  = 10^12,
+    Giga  = 10^9,
+    Mega  = 10^6,
+    Kilo  = 10^3,
+    One   = 1,
+    Milli = 10^-3,
+    Micro = 10^-6,
+    Nano  = 10^-9,
+    Pico  = 10^-12,
+    Femto = 10^-15,
 }
 
 pub struct KeyPairBuilder<T>(std::marker::PhantomData<T>);
@@ -82,7 +158,7 @@ impl From<Ecdsa> for MultiKeyPair {
 pub enum Mortality {
     Immortal,
     // TODO: Also needs period and phase.
-    Mortal([u8; 32]),
+    Mortal(u64, u64, [u8; 32]),
 }
 
 impl Mortality {

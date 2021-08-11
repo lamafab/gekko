@@ -6,7 +6,6 @@ pub extern crate parity_scale_codec as scale;
 /// Reexport of the Substrate *sp_core* crate. Contains sharable Substrate types.
 pub extern crate sp_core;
 
-pub type Balance = u128;
 pub type Sr25519 = sp_core::sr25519::Pair;
 pub type Ed25519 = sp_core::ed25519::Pair;
 pub type Ecdsa = sp_core::ecdsa::Pair;
@@ -42,7 +41,7 @@ impl BalanceBuilder {
     const DOT_UNIT: u128 = 10_000_000_000;
     const KSM_UNIT: u128 = 1_000_000_000_000;
 
-    pub fn new(network: Network) -> Result<BalanceBuilderWithNetwork, ()> {
+    pub fn new(network: Network) -> Result<BalanceWithUnit, ()> {
         let unit = match network {
             Network::Polkadot => Self::DOT_UNIT,
             Network::Kusama => Self::KSM_UNIT,
@@ -50,41 +49,41 @@ impl BalanceBuilder {
             _ => panic!(),
         };
 
-        Ok(BalanceBuilderWithNetwork { unit: unit })
+        Ok(BalanceWithUnit { unit: unit })
     }
-    pub fn custom_unit(unit: u128) -> BalanceBuilderWithNetwork {
-        BalanceBuilderWithNetwork { unit: unit }
+    pub fn custom_unit(unit: u128) -> BalanceWithUnit {
+        BalanceWithUnit { unit: unit }
     }
 }
 
-pub struct BalanceBuilderWithNetwork {
+pub struct BalanceWithUnit {
     unit: u128,
 }
 
-impl BalanceBuilderWithNetwork {
-    pub fn balance(self, balance: u128) -> Currency {
-        self.balance_as_metric(Metric::One, balance)
+impl BalanceWithUnit {
+    pub fn balance(self, balance: u128) -> Balance {
+        self.balance_as_metric(Metric::Base, balance)
     }
-    pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Currency {
-        Currency {
-            balance: convert_metrics(metric, Metric::One, balance).saturating_mul(self.unit),
+    pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Balance {
+        Balance {
+            balance: convert_metrics(metric, Metric::Base, balance).saturating_mul(self.unit),
             unit: self.unit,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Currency {
+pub struct Balance {
     balance: u128,
     unit: u128,
 }
 
-impl Currency {
+impl Balance {
     pub fn balance_native(&self) -> u128 {
         self.balance
     }
     pub fn balance_as(&self, metric: Metric) -> u128 {
-        convert_metrics(Metric::One, metric, self.balance) / self.unit
+        convert_metrics(Metric::Base, metric, self.balance) / self.unit
     }
 }
 
@@ -111,14 +110,14 @@ fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> u1
 
 #[test]
 fn balance_builder() {
-    let dot: Currency = BalanceBuilder::new(Network::Polkadot)
+    let dot: Balance = BalanceBuilder::new(Network::Polkadot)
         .unwrap()
         .balance(50_000);
 
     // Convert DOT to micro-DOT.
     assert_eq!(dot.balance_as(Metric::Micro), 50_000 * 1_000_000);
     assert_eq!(dot.balance_as(Metric::Milli), 50_000 * 1_000);
-    assert_eq!(dot.balance_as(Metric::One), 50_000);
+    assert_eq!(dot.balance_as(Metric::Base), 50_000);
     assert_eq!(dot.balance_as(Metric::Kilo), 50_000 / 1_000);
     assert_eq!(dot.balance_as(Metric::Mega), 0);
 
@@ -133,7 +132,7 @@ pub enum Metric {
     Giga  =  1_000_000_000,
     Mega  =  1_000_000,
     Kilo  =  1_000,
-    One   =  1,
+    Base  =  1,
     Milli = -1_000,
     Micro = -1_000_000,
     Nano  = -1_000_000_000,

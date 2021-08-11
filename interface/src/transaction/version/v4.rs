@@ -88,7 +88,7 @@ pub struct SignedTransactionBuilder<Call> {
     signer: Option<MultiKeyPair>,
     call: Option<Call>,
     nonce: Option<u32>,
-    payment: Option<Balance>,
+    payment: Option<u128>,
     network: Option<Network>,
     mortality: Mortality,
     spec_version: Option<u32>,
@@ -138,7 +138,7 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
     }
     pub fn payment(self, payment: Balance) -> Self {
         Self {
-            payment: Some(payment),
+            payment: Some(payment.balance_native()),
             ..self
         }
     }
@@ -231,7 +231,7 @@ pub struct Payload {
     #[codec(compact)]
     pub nonce: u32,
     #[codec(compact)]
-    pub payment: Balance,
+    pub payment: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]

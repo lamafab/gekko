@@ -1,10 +1,10 @@
 use parity_scale_codec::{Decode, Encode};
 use sp_core::crypto::{Pair, Ss58AddressFormat, Ss58Codec};
 
-/// Re-export of the [`parity-scale-codec`](https://crates.io/crates/parity-scale-codec) crate.
-pub mod scale {
-    pub use parity_scale_codec::*;
-}
+/// Reexport of the SCALE codec crate.
+pub extern crate parity_scale_codec as scale;
+/// Reexport of the Substrate *sp_core* crate. Contains sharable Substrate types.
+pub extern crate sp_core;
 
 pub type Balance = u128;
 pub type Sr25519 = sp_core::sr25519::Pair;

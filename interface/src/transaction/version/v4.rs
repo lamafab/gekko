@@ -14,6 +14,15 @@ pub struct Transaction<Address, Call, Signature, ExtraSignaturePayload> {
     pub call: Call,
 }
 
+impl<Call> Transaction<(), Call, (), ()> {
+    pub fn new_unsigned(call: Call) -> Self {
+        Self {
+            signature: None,
+            call,
+        }
+    }
+}
+
 impl<Address, Call, Signature, ExtraSignaturePayload> Encode
     for Transaction<Address, Call, Signature, ExtraSignaturePayload>
 where
@@ -279,8 +288,6 @@ mod tests {
 
     #[test]
     fn transaction_encode_decode() {
-        type UnsignedTransaction = Transaction<(), SomeExtrinsic, (), ()>;
-
         #[derive(Debug, Eq, PartialEq, Encode, Decode)]
         struct SomeExtrinsic {
             a: u32,
@@ -294,13 +301,10 @@ mod tests {
             c: vec![20, 30, 40],
         };
 
-        let transaction = UnsignedTransaction {
-            signature: None,
-            call: call,
-        };
+        let transaction = Transaction::new_unsigned(call);
 
-        let mut encoded = transaction.encode();
-        let decoded: UnsignedTransaction = Decode::decode(&mut encoded.as_ref()).unwrap();
+        let encoded = transaction.encode();
+        let decoded = Decode::decode(&mut encoded.as_ref()).unwrap();
 
         assert_eq!(transaction, decoded);
     }

@@ -288,16 +288,17 @@ where
 mod tests {
     use super::*;
     use crate::common::*;
+    use std::env;
+
+    #[derive(Debug, Eq, PartialEq, Encode, Decode)]
+    struct SomeExtrinsic {
+        a: u32,
+        b: String,
+        c: Vec<u32>,
+    }
 
     #[test]
     fn unsigned_transaction_encode_decode() {
-        #[derive(Debug, Eq, PartialEq, Encode, Decode)]
-        struct SomeExtrinsic {
-            a: u32,
-            b: String,
-            c: Vec<u32>,
-        }
-
         let call = SomeExtrinsic {
             a: 10,
             b: "some".to_string(),
@@ -314,12 +315,7 @@ mod tests {
 
     #[test]
     fn signed_transaction_encode_decode() {
-        #[derive(Debug, Eq, PartialEq, Encode, Decode)]
-        struct SomeExtrinsic {
-            a: u32,
-            b: String,
-            c: Vec<u32>,
-        }
+        let (keypair, _) = KeyPairBuilder::<Sr25519>::generate();
 
         let call = SomeExtrinsic {
             a: 10,
@@ -327,15 +323,14 @@ mod tests {
             c: vec![20, 30, 40],
         };
 
-        let (keypair, _) = KeyPairBuilder::<Sr25519>::generate();
-
-        let balance = BalanceBuilder::new(Currency::Westend).balance(5);
+        // Transaction fee.
+        let payment = BalanceBuilder::new(Currency::Westend).balance_as_metric(Metric::Milli, 500);
 
         let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
             .signer(keypair)
             .call(call)
             .nonce(0)
-            .payment(balance)
+            .payment(payment)
             .network(Network::Polkadot)
             .build()
             .unwrap();
@@ -344,5 +339,41 @@ mod tests {
         let decoded = Decode::decode(&mut encoded.as_ref()).unwrap();
 
         assert_eq!(transaction, decoded);
+    }
+
+    #[test]
+    #[ignore]
+    fn westend_create_signed_extrinsic() {
+        use crate::runtime::kusama::extrinsics::balances::TransferKeepAlive;
+
+        let builder = BalanceBuilder::new(Currency::Westend);
+        let mut seed = [0; 32];
+        seed.copy_from_slice(
+            &mut hex::decode(env::var("WESTEND_SEED").unwrap().as_bytes()).unwrap(),
+        );
+        let keypair = KeyPairBuilder::<Sr25519>::from_seed(&seed);
+
+        let call = TransferKeepAlive {
+            dest: AccountId32::from_ss58_address(
+                "5G3j1t2Ho1e4MfiLvce9xEXWjmJSpExoxAbPp5aGDjerS9nC",
+            )
+            .unwrap(),
+            value: builder.balance(1).balance_native(),
+        };
+
+        // Transaction fee.
+        let payment = builder.balance_as_metric(Metric::Milli, 500);
+
+        let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
+            .signer(keypair)
+            .call(call)
+            .nonce(0)
+            .payment(payment)
+            .network(Network::Westend)
+            .spec_version(9080)
+            .build()
+            .unwrap();
+
+        println!("HEX: {}", hex::encode(&transaction.encode()));
     }
 }

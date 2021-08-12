@@ -39,7 +39,7 @@ pub enum Currency {
     Kusama,
     Polkadot,
     Westend,
-    Custom(u128)
+    Custom(u128),
 }
 
 impl Currency {
@@ -52,13 +52,17 @@ impl Currency {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BalanceBuilder;
 impl BalanceBuilder {
     pub fn new(currency: Currency) -> BalanceWithUnit {
-        BalanceWithUnit { unit: currency.base_unit() }
+        BalanceWithUnit {
+            unit: currency.base_unit(),
+        }
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BalanceWithUnit {
     unit: u128,
 }
@@ -83,6 +87,7 @@ pub struct Balance {
 }
 
 impl Balance {
+    // TODO: Rename to "native"
     pub fn balance_native(&self) -> u128 {
         self.balance
     }
@@ -101,21 +106,29 @@ fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> u1
     let prev_metric = prev_metric as i128;
     let new_metric = new_metric as i128;
 
+    let max = pos(new_metric).max(pos(prev_metric));
+    let min = pos(new_metric).min(pos(prev_metric));
+
     if new_metric > prev_metric {
-        let diff = pos(new_metric) / pos(prev_metric);
+        let diff = max / min;
         balance / diff
     } else if new_metric < prev_metric {
-        let diff = pos(new_metric) * pos(prev_metric);
+        let diff = max * min;
         balance.saturating_mul(diff)
     } else {
         balance
     }
 }
 
+impl Encode for Balance {
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        f(&self.balance.encode())
+    }
+}
+
 #[test]
 fn balance_builder() {
-    let dot: Balance = BalanceBuilder::new(Currency::Polkadot)
-        .balance(50_000);
+    let dot: Balance = BalanceBuilder::new(Currency::Polkadot).balance(50_000);
 
     // Convert DOT to micro-DOT.
     assert_eq!(dot.balance_as(Metric::Micro), 50_000 * 1_000_000);
@@ -124,7 +137,10 @@ fn balance_builder() {
     assert_eq!(dot.balance_as(Metric::Kilo), 50_000 / 1_000);
     assert_eq!(dot.balance_as(Metric::Mega), 0);
 
-    assert_eq!(dot.balance_native(), Currency::Polkadot.base_unit() * 50_000);
+    assert_eq!(
+        dot.balance_native(),
+        Currency::Polkadot.base_unit() * 50_000
+    );
 }
 
 // TODO: Add convenience handlers for DOT/KSM.
@@ -150,6 +166,7 @@ impl<T: Pair> KeyPairBuilder<T> {
     pub fn generate() -> (T, T::Seed) {
         T::generate()
     }
+    // TODO: Add handler for &[u8]
     pub fn from_seed(seed: &T::Seed) -> T {
         T::from_seed(seed)
     }
@@ -285,20 +302,13 @@ impl From<sp_core::ecdsa::Signature> for MultiSignature {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
 pub struct AccountId32([u8; 32]);
 
+// TODO: Consider adding hex handler.
 impl AccountId32 {
     pub fn new(bytes: [u8; 32]) -> Self {
         AccountId32(bytes)
     }
-    // TODO: Doc: clarify Option
-    // TODO: Result.
-    pub fn from_ss58_address(addr: &str, expected: Option<Ss58AddressFormat>) -> Result<Self, ()> {
-        let (account, format) = Self::from_ss58check_with_version(addr).unwrap();
-        if let Some(expected) = expected {
-            if format != expected {
-                unimplemented!()
-            }
-        }
-
+    pub fn from_ss58_address(addr: &str) -> Result<Self, ()> {
+        let (account, _) = Self::from_ss58check_with_version(addr).unwrap();
         Ok(account)
     }
     pub fn from_ss58_address_with_version(addr: &str) -> Result<(Self, Ss58AddressFormat), ()> {

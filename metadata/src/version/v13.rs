@@ -1,5 +1,6 @@
 use crate::{ExtrinsicInfo, ModuleMetadataExt, Result};
 
+// TODO: Should implement Serialize/Deserialize.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub struct MetadataV13 {
     pub modules: Vec<ModuleMetadata>,

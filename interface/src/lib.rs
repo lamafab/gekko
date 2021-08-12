@@ -26,12 +26,17 @@ pub mod runtime {
     pub mod polkadot {
         pub const LATEST_SPEC_VERSION: u32 = 9050;
 
+        // TODO: This should use the `gekko-dumps` crate.
         #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_polkadot_9050.hex")]
         struct RM9050;
     }
 
     pub mod kusama {
-        pub const LATEST_SPEC_VERSION: u32 = 9050;
+        pub const LATEST_SPEC_VERSION: u32 = 9080;
+
+        // TODO: This should use the `gekko-dumps` crate.
+        #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_kusama_9080.hex")]
+        struct RM9080;
     }
 }
 

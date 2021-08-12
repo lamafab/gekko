@@ -79,7 +79,7 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
             .map(|doc| doc.replace("[`", "`").replace("`]", "`"))
             .collect();
 
-        // Create struct fields.
+        // Create individual struct fields.
         let ext_args = ext
             .args
             .iter()
@@ -93,6 +93,14 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
                     pub #name: #ty,
                 }
             });
+
+        // Specialized struct field parsing used for the `parity_scale_codec::Decode` implementation.
+        let ext_args_decode = ext.args.iter().map(|(name, _)| {
+            let name = format_ident!("{}", name);
+            quote! {
+                #name: parity_scale_codec::Decode::decode(input)?,
+            }
+        });
 
         // Prepare documentation for type.
         let disclaimer = "# Type Disclaimer\nThis library makes no assumptions about parameter types and must be specified \
@@ -119,6 +127,10 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
         let generics_idents: Vec<syn::Ident> =
             generics.iter().map(|v| format_ident!("{}", v)).collect();
 
+        // Enums have a max size of 256. This is acknowledged in the SCALE specification.
+        let ext_module_id = ext.module_id as u8;
+        let ext_dispatch_id = ext.dispatch_id as u8;
+
         let type_stream: TokenStream = quote! {
             #docs
             #[doc = #disclaimer]
@@ -128,6 +140,35 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
                 #(#generics_idents: parity_scale_codec::Encode + parity_scale_codec::Decode, )*
             {
                 #(#ext_args)*
+            }
+
+            impl #generics_wrapped parity_scale_codec::Encode for #ext_name #generics_wrapped
+            where
+                #(#generics_idents: parity_scale_codec::Encode + parity_scale_codec::Decode, )*
+            {
+                fn using_encoded<SR, SF: FnOnce(&[u8]) -> SR>(&self, f: SF) -> SR {
+                    f(&[#ext_module_id, #ext_dispatch_id])
+                }
+            }
+
+            impl #generics_wrapped parity_scale_codec::Decode for #ext_name #generics_wrapped
+            where
+                #(#generics_idents: parity_scale_codec::Encode + parity_scale_codec::Decode, )*
+            {
+                fn decode<SI: parity_scale_codec::Input>(input: &mut SI) -> Result<Self, parity_scale_codec::Error> {
+                    let mut buffer = [0; 2];
+                    input.read(&mut buffer)?;
+
+                    if buffer != [#ext_module_id, #ext_dispatch_id] {
+                        return Err("Invalid identifier of the expected type.".into())
+                    }
+
+                    Ok(
+                        #ext_name {
+                            #(#ext_args_decode )*
+                        }
+                    )
+                }
             }
         };
 

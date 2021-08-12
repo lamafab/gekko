@@ -142,28 +142,3 @@ impl MetadataVersion {
         }
     }
 }
-
-#[test]
-fn parse_file() {
-    use std::fs::read_to_string;
-
-    let content = read_to_string("dumps/metadata_polkadot_9050.hex").unwrap();
-    let res = parse_jsonrpc_metadata(content).unwrap();
-
-    let data = match res {
-        MetadataVersion::V13(data) => data,
-        _ => panic!(),
-    };
-
-    for m in data.modules {
-        println!("> {}", m.name);
-        m.calls.map(|calls| {
-            for c in calls {
-                println!("  > {}", c.name);
-                for arg in c.arguments {
-                    println!("    > {}: {}", arg.name, arg.ty);
-                }
-            }
-        });
-    }
-}

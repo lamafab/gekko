@@ -54,6 +54,7 @@ impl Currency {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BalanceBuilder;
+
 impl BalanceBuilder {
     pub fn new(currency: Currency) -> BalanceWithUnit {
         BalanceWithUnit {
@@ -87,11 +88,10 @@ pub struct Balance {
 }
 
 impl Balance {
-    // TODO: Rename to "native"
-    pub fn balance_native(&self) -> u128 {
+    pub fn native(&self) -> u128 {
         self.balance
     }
-    pub fn balance_as(&self, metric: Metric) -> u128 {
+    pub fn as_metric(&self, metric: Metric) -> u128 {
         convert_metrics(Metric::Base, metric, self.balance) / self.unit
     }
 }
@@ -131,14 +131,14 @@ fn balance_builder() {
     let dot: Balance = BalanceBuilder::new(Currency::Polkadot).balance(50_000);
 
     // Convert DOT to micro-DOT.
-    assert_eq!(dot.balance_as(Metric::Micro), 50_000 * 1_000_000);
-    assert_eq!(dot.balance_as(Metric::Milli), 50_000 * 1_000);
-    assert_eq!(dot.balance_as(Metric::Base), 50_000);
-    assert_eq!(dot.balance_as(Metric::Kilo), 50_000 / 1_000);
-    assert_eq!(dot.balance_as(Metric::Mega), 0);
+    assert_eq!(dot.as_metric(Metric::Micro), 50_000 * 1_000_000);
+    assert_eq!(dot.as_metric(Metric::Milli), 50_000 * 1_000);
+    assert_eq!(dot.as_metric(Metric::Base), 50_000);
+    assert_eq!(dot.as_metric(Metric::Kilo), 50_000 / 1_000);
+    assert_eq!(dot.as_metric(Metric::Mega), 0);
 
     assert_eq!(
-        dot.balance_native(),
+        dot.native(),
         Currency::Polkadot.base_unit() * 50_000
     );
 }
@@ -324,14 +324,14 @@ impl AccountId32 {
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0
     }
-    // TODO: Add method to extra public key.
 }
 
 impl Encode for AccountId32 {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
         let mut buffer = [0; 33];
 
-        // The first byte is 0, which represents index 0 of Substrates `sp_runtime::MultiAddress`.
+        // The first byte is 0, which represents index 0 of Substrates
+        // `sp_runtime::MultiAddress`, i.e. `AccountId` (pubkey).
         buffer[1..].copy_from_slice(&self.0);
 
         f(&buffer)
@@ -343,7 +343,7 @@ impl Decode for AccountId32 {
         let mut buffer = [0; 32];
         let idx = input.read_byte()?;
         if idx != 0 {
-            return Err("Invalid enum index of AccountId (pubkey), expected 0".into())
+            return Err("Invalid enum index of AccountId (pubkey), expected 0".into());
         }
 
         input.read(&mut buffer)?;

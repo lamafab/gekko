@@ -1,7 +1,7 @@
 use crate::common::{AccountId32, Balance, Mortality, MultiKeyPair, MultiSignature, Network};
 use crate::runtime::{kusama, polkadot};
 use crate::{blake2b, Error, Result};
-use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input, Compact};
+use parity_scale_codec::{Compact, Decode, Encode, Error as ScaleError, Input};
 use sp_core::crypto::Pair;
 
 pub const TX_VERSION: u32 = 4;
@@ -136,9 +136,10 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
             ..self
         }
     }
+    // TODO: Rename to "fee"
     pub fn payment(self, payment: Balance) -> Self {
         Self {
-            payment: Some(payment.balance_native()),
+            payment: Some(payment.native()),
             ..self
         }
     }
@@ -186,7 +187,7 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
         let spec_version = match network {
             Network::Kusama => self.spec_version.unwrap_or(kusama::LATEST_SPEC_VERSION),
             Network::Polkadot => self.spec_version.unwrap_or(polkadot::LATEST_SPEC_VERSION),
-            // `spec_version` must be provided for any other network
+            // `spec_version` must be provided for any other network.
             _ => self
                 .spec_version
                 .ok_or(Error::BuilderMissingField("spec_version"))?,
@@ -346,19 +347,20 @@ mod tests {
     fn westend_create_signed_extrinsic() {
         use crate::runtime::kusama::extrinsics::balances::TransferKeepAlive;
 
-        let builder = BalanceBuilder::new(Currency::Westend);
         let mut seed = [0; 32];
         seed.copy_from_slice(
             &mut hex::decode(env::var("WESTEND_SEED").unwrap().as_bytes()).unwrap(),
         );
+
         let keypair = KeyPairBuilder::<Sr25519>::from_seed(&seed);
+        let builder = BalanceBuilder::new(Currency::Westend);
+        let destination =
+            AccountId32::from_ss58_address("5G3j1t2Ho1e4MfiLvce9xEXWjmJSpExoxAbPp5aGDjerS9nC")
+                .unwrap();
 
         let call = TransferKeepAlive {
-            dest: AccountId32::from_ss58_address(
-                "5G3j1t2Ho1e4MfiLvce9xEXWjmJSpExoxAbPp5aGDjerS9nC",
-            )
-            .unwrap(),
-            value: Compact::from(builder.balance(1).balance_native()),
+            dest: destination,
+            value: Compact::from(builder.balance(1).native()),
         };
 
         println!(">> 0x{}", hex::encode(&call.encode()));

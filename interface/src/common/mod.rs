@@ -24,9 +24,9 @@ impl Network {
         let mut genesis = [0; 32];
 
         let hash_str = match self {
-            Self::Polkadot => "c0096358534ec8d21d01d34b836eed476a1c343f8724fa2153dc0725ad797a90",
-            Self::Kusama => "cd9b8e2fc2f57c4570a86319b005832080e0c478ab41ae5d44e23705872f5ad3",
-            Self::Westend => "44ef51c86927a1e2da55754dba9684dd6ff9bac8c61624ffe958be656c42e036",
+            Self::Polkadot => "91b171bb158e2d3848fa23a9f1c25182fb8e20313b2c1eb49219da7a70ce90c3",
+            Self::Kusama => "b0a8d493285c2df73290dfb7e61f870f17b41801197a149ca93654499ea3dafe",
+            Self::Westend => "e143f23803ac50e8f6f8e62695d1ce9e4e1d68aa36c1cd2cfd15340213f3423e",
             Self::Custom(genesis) => return *genesis,
         };
 
@@ -88,6 +88,7 @@ pub struct Balance {
 }
 
 impl Balance {
+    // TODO: Add warning.
     pub fn native(&self) -> u128 {
         self.balance
     }

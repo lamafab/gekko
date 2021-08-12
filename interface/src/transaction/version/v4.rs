@@ -1,7 +1,7 @@
 use crate::common::{AccountId32, Balance, Mortality, MultiKeyPair, MultiSignature, Network};
 use crate::runtime::{kusama, polkadot};
 use crate::{blake2b, Error, Result};
-use parity_scale_codec::{Compact, Decode, Encode, Error as ScaleError, Input};
+use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
 use sp_core::crypto::Pair;
 
 pub const TX_VERSION: u32 = 4;
@@ -176,13 +176,6 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
         let payment = self.payment.ok_or(Error::BuilderMissingField("payment"))?;
         let network = self.network.ok_or(Error::BuilderMissingField("network"))?;
 
-        // Prepare transaction payload.
-        let payload = Payload {
-            mortality: self.mortality,
-            nonce: nonce,
-            payment: payment,
-        };
-
         // Determine spec_version.
         let spec_version = match network {
             Network::Kusama => self.spec_version.unwrap_or(kusama::LATEST_SPEC_VERSION),
@@ -193,11 +186,19 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
                 .ok_or(Error::BuilderMissingField("spec_version"))?,
         };
 
+        // Set mortality starting period.
         let birth = match self.mortality {
             Mortality::Immortal => network.genesis(),
             Mortality::Mortal(_, _, birth) => {
                 birth.ok_or(Error::BuilderMissingField("no birth block in Mortality"))?
             }
+        };
+
+        // Prepare transaction payload.
+        let payload = Payload {
+            mortality: self.mortality,
+            nonce: nonce,
+            payment: payment,
         };
 
         let extra = ExtraSignaturePayload {
@@ -289,6 +290,7 @@ where
 mod tests {
     use super::*;
     use crate::common::*;
+    use parity_scale_codec::Compact;
     use std::env;
 
     #[derive(Debug, Eq, PartialEq, Encode, Decode)]
@@ -353,25 +355,25 @@ mod tests {
         );
 
         let keypair = KeyPairBuilder::<Sr25519>::from_seed(&seed);
-        let builder = BalanceBuilder::new(Currency::Westend);
+        let currency = BalanceBuilder::new(Currency::Westend);
         let destination =
             AccountId32::from_ss58_address("5G3j1t2Ho1e4MfiLvce9xEXWjmJSpExoxAbPp5aGDjerS9nC")
                 .unwrap();
 
         let call = TransferKeepAlive {
             dest: destination,
-            value: Compact::from(builder.balance(1).native()),
+            value: Compact::from(currency.balance(1).native()),
         };
 
         println!(">> 0x{}", hex::encode(&call.encode()));
 
         // Transaction fee.
-        let payment = builder.balance_as_metric(Metric::Milli, 500);
+        let payment = currency.balance_as_metric(Metric::Milli, 500);
 
         let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
             .signer(keypair)
             .call(call)
-            .nonce(0)
+            .nonce(1)
             .payment(payment)
             .network(Network::Westend)
             .spec_version(9080)

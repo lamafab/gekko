@@ -35,23 +35,27 @@ impl Network {
     }
 }
 
+pub enum Currency {
+    Kusama,
+    Polkadot,
+    Westend,
+    Custom(u128)
+}
+
+impl Currency {
+    pub fn base_unit(&self) -> u128 {
+        match self {
+            Self::Kusama | Self::Westend => 1_000_000_000_000,
+            Self::Polkadot => 10_000_000_000,
+            Self::Custom(unit) => *unit,
+        }
+    }
+}
+
 pub struct BalanceBuilder;
 impl BalanceBuilder {
-    const DOT_UNIT: u128 = 10_000_000_000;
-    const KSM_UNIT: u128 = 1_000_000_000_000;
-
-    pub fn new(network: Network) -> Result<BalanceWithUnit, ()> {
-        let unit = match network {
-            Network::Polkadot => Self::DOT_UNIT,
-            Network::Kusama => Self::KSM_UNIT,
-            // TODO
-            _ => panic!(),
-        };
-
-        Ok(BalanceWithUnit { unit: unit })
-    }
-    pub fn custom_unit(unit: u128) -> BalanceWithUnit {
-        BalanceWithUnit { unit: unit }
+    pub fn new(currency: Currency) -> BalanceWithUnit {
+        BalanceWithUnit { unit: currency.base_unit() }
     }
 }
 
@@ -110,8 +114,7 @@ fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> u1
 
 #[test]
 fn balance_builder() {
-    let dot: Balance = BalanceBuilder::new(Network::Polkadot)
-        .unwrap()
+    let dot: Balance = BalanceBuilder::new(Currency::Polkadot)
         .balance(50_000);
 
     // Convert DOT to micro-DOT.
@@ -121,7 +124,7 @@ fn balance_builder() {
     assert_eq!(dot.balance_as(Metric::Kilo), 50_000 / 1_000);
     assert_eq!(dot.balance_as(Metric::Mega), 0);
 
-    assert_eq!(dot.balance_native(), BalanceBuilder::DOT_UNIT * 50_000);
+    assert_eq!(dot.balance_native(), Currency::Polkadot.base_unit() * 50_000);
 }
 
 // TODO: Add convenience handlers for DOT/KSM.

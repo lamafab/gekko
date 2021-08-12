@@ -286,13 +286,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use sp_core::crypto::UncheckedInto;
-
     use super::*;
     use crate::common::*;
 
     #[test]
-    fn transaction_encode_decode_unsigned() {
+    fn unsigned_transaction_encode_decode() {
         #[derive(Debug, Eq, PartialEq, Encode, Decode)]
         struct SomeExtrinsic {
             a: u32,
@@ -315,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn transaction_encode_decode_signed() {
+    fn signed_transaction_encode_decode() {
         #[derive(Debug, Eq, PartialEq, Encode, Decode)]
         struct SomeExtrinsic {
             a: u32,
@@ -331,11 +329,13 @@ mod tests {
 
         let (keypair, _) = KeyPairBuilder::<Sr25519>::generate();
 
+        let balance = BalanceBuilder::new(Currency::Westend).balance(5);
+
         let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
             .signer(keypair)
             .call(call)
             .nonce(0)
-            .payment(1_000_000)
+            .payment(balance)
             .network(Network::Polkadot)
             .build()
             .unwrap();

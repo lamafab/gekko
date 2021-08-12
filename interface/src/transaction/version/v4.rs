@@ -373,7 +373,7 @@ mod tests {
         let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
             .signer(keypair)
             .call(call)
-            .nonce(1)
+            .nonce(0)
             .payment(payment)
             .network(Network::Westend)
             .spec_version(9080)

@@ -73,6 +73,7 @@ impl BalanceWithUnit {
     pub fn balance(self, balance: u128) -> Balance {
         self.balance_as_metric(Metric::Base, balance)
     }
+    // TODO: Rename.
     pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Balance {
         Balance {
             balance: convert_metrics(metric, Metric::Base, balance).saturating_mul(self.unit),
@@ -111,11 +112,9 @@ fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> u1
     let min = pos(new_metric).min(pos(prev_metric));
 
     if new_metric > prev_metric {
-        let diff = max / min;
-        balance / diff
+        balance / (max / min)
     } else if new_metric < prev_metric {
-        let diff = max * min;
-        balance.saturating_mul(diff)
+        balance.saturating_mul(max * min)
     } else {
         balance
     }

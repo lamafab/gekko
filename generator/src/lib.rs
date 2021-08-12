@@ -94,7 +94,15 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
                 }
             });
 
-        // Specialized struct field parsing used for the `parity_scale_codec::Decode` implementation.
+        // Specialized struct field encoding used for the `parity_scale_codec::Encode` implementation.
+        let ext_args_encode = ext.args.iter().map(|(name, _)| {
+            let name = format_ident!("{}", name);
+            quote! {
+                self.#name.encode_to(&mut buffer);
+            }
+        });
+
+        // Specialized struct field decoding used for the `parity_scale_codec::Decode` implementation.
         let ext_args_decode = ext.args.iter().map(|(name, _)| {
             let name = format_ident!("{}", name);
             quote! {
@@ -147,7 +155,9 @@ fn process_runtime_metadata(content: &str) -> TokenStream {
                 #(#generics_idents: parity_scale_codec::Encode + parity_scale_codec::Decode, )*
             {
                 fn using_encoded<SR, SF: FnOnce(&[u8]) -> SR>(&self, f: SF) -> SR {
-                    f(&[#ext_module_id, #ext_dispatch_id])
+                    let mut buffer = vec![#ext_module_id, #ext_dispatch_id];
+                    #(#ext_args_encode)*
+                    f(&buffer)
                 }
             }
 

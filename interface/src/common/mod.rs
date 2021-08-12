@@ -299,7 +299,9 @@ impl From<sp_core::ecdsa::Signature> for MultiSignature {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
+// TODO: Implement MultiAddress.
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AccountId32([u8; 32]);
 
 // TODO: Consider adding hex handler.
@@ -323,6 +325,31 @@ impl AccountId32 {
         self.0
     }
     // TODO: Add method to extra public key.
+}
+
+impl Encode for AccountId32 {
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        let mut buffer = [0; 33];
+
+        // The first byte is 0, which represents index 0 of Substrates `sp_runtime::MultiAddress`.
+        buffer[1..].copy_from_slice(&self.0);
+
+        f(&buffer)
+    }
+}
+
+impl Decode for AccountId32 {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+        let mut buffer = [0; 32];
+        let idx = input.read_byte()?;
+        if idx != 0 {
+            return Err("Invalid enum index of AccountId (pubkey), expected 0".into())
+        }
+
+        input.read(&mut buffer)?;
+
+        Ok(AccountId32(buffer))
+    }
 }
 
 impl Ss58Codec for AccountId32 {}

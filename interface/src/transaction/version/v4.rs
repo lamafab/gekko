@@ -1,7 +1,7 @@
 use crate::common::{AccountId32, Balance, Mortality, MultiKeyPair, MultiSignature, Network};
 use crate::runtime::{kusama, polkadot};
 use crate::{blake2b, Error, Result};
-use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
+use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input, Compact};
 use sp_core::crypto::Pair;
 
 pub const TX_VERSION: u32 = 4;
@@ -358,8 +358,10 @@ mod tests {
                 "5G3j1t2Ho1e4MfiLvce9xEXWjmJSpExoxAbPp5aGDjerS9nC",
             )
             .unwrap(),
-            value: builder.balance(1).balance_native(),
+            value: Compact::from(builder.balance(1).balance_native()),
         };
+
+        println!(">> 0x{}", hex::encode(&call.encode()));
 
         // Transaction fee.
         let payment = builder.balance_as_metric(Metric::Milli, 500);
@@ -374,6 +376,6 @@ mod tests {
             .build()
             .unwrap();
 
-        println!("HEX: {}", hex::encode(&transaction.encode()));
+        println!("HEX: 0x{}", hex::encode(&transaction.encode()));
     }
 }

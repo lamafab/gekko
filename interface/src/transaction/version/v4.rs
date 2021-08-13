@@ -290,7 +290,6 @@ where
 mod tests {
     use super::*;
     use crate::common::*;
-    use parity_scale_codec::Compact;
     use std::env;
 
     #[derive(Debug, Eq, PartialEq, Encode, Decode)]
@@ -364,7 +363,7 @@ mod tests {
 
         let call = TransferKeepAlive {
             dest: destination,
-            value: Compact::from(currency.balance(1).as_base_unit()),
+            value: currency.balance(1).as_base_unit(),
         };
 
         println!("CALL >> 0x{}", hex::encode(&call.encode()));

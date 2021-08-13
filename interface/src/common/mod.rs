@@ -1,6 +1,6 @@
-//! This module contains useful primitives when working with the [runtime](crate::runtime).
+//! This module contains useful primitives when working with the [runtime](gekko::runtime).
 
-use parity_scale_codec::{Decode, Encode, Input};
+use parity_scale_codec::{Compact, Decode, Encode, Input};
 use sp_core::crypto::{AccountId32, Pair, Ss58AddressFormat, Ss58Codec};
 
 pub extern crate parity_scale_codec as scale;
@@ -79,17 +79,23 @@ impl BalanceWithUnit {
     // TODO: Should return Result
     pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Option<Balance> {
         Some(Balance {
-            balance: convert_metrics(metric, Metric::One, balance)?.saturating_mul(self.unit),
+            balance: convert_metrics(metric, Metric::One, balance.saturating_mul(self.unit))?,
             unit: self.unit,
         })
     }
 }
 
+pub struct OpaqueBalance;
+
 /// Represents the balance of a chains native currency with metric conversion
-/// utility.
+/// utilities.
 ///
 /// When creating or processing transactions, this types should be used to
-/// reliably handle balances and to do metric conversions.
+/// reliably handle balances and to do metric conversions. The
+/// [`Encode`](gekko::common::scale::Encode) implementation handles encoding to
+/// [`Compact`](gekko::common::scale::Compact) automatically. Decoding is not
+/// implemented for this type since the base unit cannot be know without having
+/// more context. For decoding, [`OpaqueBalance`] should be used instead.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Balance {
     balance: u128,
@@ -101,19 +107,22 @@ impl Balance {
     /// example in Polkadot, `1` DOT equals `10_000_000_000` "Planck".
     ///
     /// ```
+    /// use gekko::common::*;
+    ///
     /// // Balance of 50 DOT.
-    /// let base_unit = BalanceBuilder::new(Currency::Polkadot).balance(50);
+    /// let balance = BalanceBuilder::new(Currency::Polkadot).balance(50);
     ///
-    /// assert_eq!(balance.base_unit(), 50 * 10_000_000_000);
+    /// assert_eq!(balance.as_base_unit(), 50 * 10_000_000_000);
     /// ```
-    ///
-    /// When creating transactions, this is the value that should be used for
-    /// specifying balances.
     ///
     /// # Example
     ///
+    /// When creating transactions, the balance represented in base units must
+    /// be used for specifying balances.
+    ///
     /// ```
-    /// use crate::runtime::polkadot::extrinsics::balances::TransferKeepAlive;
+    /// use gekko::common::*;
+    /// use gekko::runtime::polkadot::extrinsics::balances::TransferKeepAlive;
     ///
     /// let destination =
     ///     AccountId::from_ss58_address("12eDex4amEwj39T7Wz4Rkppb68YGCDYKG9QHhEhHGtNdDy7D")
@@ -123,32 +132,39 @@ impl Balance {
     ///     .balance(50)
     ///     .as_base_unit();
     ///
-    /// // Create a `transfer` extrinsic. Balance must
-    /// // be a SCALE encoded `Compact` value.
+    /// // Create a `transfer` extrinsic.
     /// let call = TransferKeepAlive {
     ///     dest: destination,
-    ///     value: Compact::from(base_unit),
+    ///     value: base_unit,
     /// };
     /// ```
     pub fn as_base_unit(&self) -> u128 {
         self.balance
     }
-    /// Converts the balance into the specified metric.
+    /// Converts the balance into the specified metric. Returns `None` if the
+    /// balance cannot be represented in the specified metric.
     ///
     /// # Example
     ///
     /// ```
+    /// use gekko::common::*;
+    ///
     /// // Balance of 50 DOT.
     /// let balance = BalanceBuilder::new(Currency::Polkadot)
     ///     .balance(50);
     ///
-    /// assert_eq!(balance.as_metric(Metric::Micro), 50_000_000)
-    /// assert_eq!(balance.as_metric(Metric::Millis), 50_000)
+    /// assert_eq!(balance.as_metric(Metric::Micro), Some(50_000_000));
+    /// assert_eq!(balance.as_metric(Metric::Milli), Some(50_000));
+    /// assert_eq!(balance.as_metric(Metric::One), Some(50));
     /// // Cannot be represented in kilo.
-    /// assert_eq!(balance.as_metric(Metric::Kilo), None)
+    /// assert_eq!(balance.as_metric(Metric::Kilo), None);
     /// ```
     pub fn as_metric(&self, metric: Metric) -> Option<u128> {
-        Some(convert_metrics(Metric::One, metric, self.balance)? / self.unit)
+        Some(convert_metrics(
+            Metric::One,
+            metric,
+            self.balance / self.unit,
+        )?)
     }
 }
 
@@ -182,7 +198,7 @@ fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> Op
 
 impl Encode for Balance {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-        f(&self.balance.encode())
+        f(&Compact::from(self.balance).encode())
     }
 }
 
@@ -366,7 +382,8 @@ pub struct MultiAddress;
 /// You also use that one instead or convert into it (or from it).
 ///
 /// ```
-/// use crate::common::sp_core::crypto::AccountId32;
+/// use gekko::common::*;
+/// use gekko::common::sp_core::crypto::AccountId32;
 ///
 /// let account_id =
 ///     AccountId::from_ss58_address("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
@@ -396,6 +413,8 @@ impl AccountId {
     /// # Example
     ///
     /// ```
+    /// use gekko::common::*;
+    ///
     /// let account_id =
     ///     AccountId::from_ss58_address("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
     ///         .unwrap();
@@ -409,11 +428,14 @@ impl AccountId {
     ///
     /// # Example
     /// ```
+    /// use gekko::common::*;
+    /// use gekko::common::sp_core::crypto::Ss58AddressFormat;
+    ///
     /// let (account_id, version) =
     ///     AccountId::from_ss58_address_with_version("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
     ///         .unwrap();
     ///
-    /// assert_eq!(version, Ss58AddressFormat::Kusama);
+    /// assert_eq!(version, Ss58AddressFormat::KusamaAccount);
     /// ```
     pub fn from_ss58_address_with_version(addr: &str) -> Result<(Self, Ss58AddressFormat), ()> {
         let (account, format) = Self::from_ss58check_with_version(addr).unwrap();

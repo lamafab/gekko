@@ -24,19 +24,29 @@ pub mod common;
 
 pub mod runtime {
     pub mod polkadot {
-        pub const LATEST_SPEC_VERSION: u32 = 9050;
+        pub use latest::*;
 
-        // TODO: This should use the `gekko-dumps` crate.
-        #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_polkadot_9050.hex")]
-        struct RM9050;
+        /// The latest runtime interface.
+        mod latest {
+            /// The latest spec version.
+            pub const SPEC_VERSION: u32 = 9050;
+
+            #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_polkadot_9050.hex")]
+            struct A;
+        }
     }
 
     pub mod kusama {
-        pub const LATEST_SPEC_VERSION: u32 = 9080;
+        pub use latest::*;
 
-        // TODO: This should use the `gekko-dumps` crate.
-        #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_kusama_9080.hex")]
-        struct RM9080;
+        /// The latest runtime interface.
+        mod latest {
+            /// The latest spec version.
+            pub const SPEC_VERSION: u32 = 9080;
+
+            #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_kusama_9080.hex")]
+            struct RM9080;
+        }
     }
 }
 

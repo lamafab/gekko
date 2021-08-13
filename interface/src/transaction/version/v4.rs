@@ -178,8 +178,8 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
 
         // Determine spec_version.
         let spec_version = match network {
-            Network::Kusama => self.spec_version.unwrap_or(kusama::LATEST_SPEC_VERSION),
-            Network::Polkadot => self.spec_version.unwrap_or(polkadot::LATEST_SPEC_VERSION),
+            Network::Kusama => self.spec_version.unwrap_or(kusama::SPEC_VERSION),
+            Network::Polkadot => self.spec_version.unwrap_or(polkadot::SPEC_VERSION),
             // `spec_version` must be provided for any other network.
             _ => self
                 .spec_version
@@ -363,7 +363,7 @@ mod tests {
 
         let call = TransferKeepAlive {
             dest: destination,
-            value: currency.balance(1).as_base_unit(),
+            value: currency.balance(1),
         };
 
         println!("CALL >> 0x{}", hex::encode(&call.encode()));

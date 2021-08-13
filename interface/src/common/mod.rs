@@ -1,4 +1,5 @@
-//! This module contains useful primitives when working with the [runtime](gekko::runtime).
+//! This module contains useful primitives when working with the
+//! [runtime](gekko::runtime).
 
 use parity_scale_codec::{Compact, Decode, Encode, Input};
 use sp_core::crypto::{AccountId32, Pair, Ss58AddressFormat, Ss58Codec};
@@ -75,8 +76,7 @@ impl BalanceWithUnit {
     pub fn balance(self, balance: u128) -> Balance {
         self.balance_as_metric(Metric::One, balance).unwrap()
     }
-    // TODO: Rename.
-    // TODO: Should return Result
+    // TODO: Rename. TODO: Should return Result
     pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Option<Balance> {
         Some(Balance {
             balance: convert_metrics(metric, Metric::One, balance.saturating_mul(self.unit))?,
@@ -94,8 +94,27 @@ pub struct OpaqueBalance;
 /// reliably handle balances and to do metric conversions. The
 /// [`Encode`](gekko::common::scale::Encode) implementation handles encoding to
 /// [`Compact`](gekko::common::scale::Compact) automatically. Decoding is not
-/// implemented for this type since the base unit cannot be know without having
+/// supported for this type since the base unit cannot be know without having
 /// more context. For decoding, [`OpaqueBalance`] should be used instead.
+///
+/// # Example
+///
+/// ```
+/// use gekko::common::*;
+/// use gekko::runtime::polkadot::extrinsics::balances::TransferKeepAlive;
+///
+/// let destination =
+///     AccountId::from_ss58_address("12eDex4amEwj39T7Wz4Rkppb68YGCDYKG9QHhEhHGtNdDy7D")
+///         .unwrap();
+///
+/// let balance = BalanceBuilder::new(Currency::Polkadot).balance(50);
+///
+/// // Create a `transfer_keep_alive` extrinsic.
+/// let call = TransferKeepAlive {
+///     dest: destination,
+///     value: balance,
+/// };
+/// ```
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Balance {
     balance: u128,
@@ -106,6 +125,12 @@ impl Balance {
     /// Converts the balance into the base unit the **runtime** expects. For
     /// example in Polkadot, `1` DOT equals `10_000_000_000` "Planck".
     ///
+    /// When creating transactions, the [`Encode`] implementation of [`Balance`]
+    /// will handle that for you automatically, including encoding it to SCALE
+    /// [`Compact`].
+    ///
+    /// # Example
+    ///
     /// ```
     /// use gekko::common::*;
     ///
@@ -113,30 +138,6 @@ impl Balance {
     /// let balance = BalanceBuilder::new(Currency::Polkadot).balance(50);
     ///
     /// assert_eq!(balance.as_base_unit(), 50 * 10_000_000_000);
-    /// ```
-    ///
-    /// # Example
-    ///
-    /// When creating transactions, the balance represented in base units must
-    /// be used for specifying balances.
-    ///
-    /// ```
-    /// use gekko::common::*;
-    /// use gekko::runtime::polkadot::extrinsics::balances::TransferKeepAlive;
-    ///
-    /// let destination =
-    ///     AccountId::from_ss58_address("12eDex4amEwj39T7Wz4Rkppb68YGCDYKG9QHhEhHGtNdDy7D")
-    ///         .unwrap();
-    ///
-    /// let base_unit = BalanceBuilder::new(Currency::Polkadot)
-    ///     .balance(50)
-    ///     .as_base_unit();
-    ///
-    /// // Create a `transfer` extrinsic.
-    /// let call = TransferKeepAlive {
-    ///     dest: destination,
-    ///     value: base_unit,
-    /// };
     /// ```
     pub fn as_base_unit(&self) -> u128 {
         self.balance
@@ -199,6 +200,12 @@ fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> Op
 impl Encode for Balance {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
         f(&Compact::from(self.balance).encode())
+    }
+}
+
+impl Decode for Balance {
+    fn decode<I: Input>(_input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+        Err("cannot decode Balance. Use OpaqueBalance instead.".into())
     }
 }
 

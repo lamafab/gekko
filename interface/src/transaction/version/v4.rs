@@ -1,4 +1,4 @@
-use crate::common::{AccountId32, Balance, Mortality, MultiKeyPair, MultiSignature, Network};
+use crate::common::{AccountId, Balance, Mortality, MultiKeyPair, MultiSignature, Network};
 use crate::runtime::{kusama, polkadot};
 use crate::{blake2b, Error, Result};
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
@@ -81,7 +81,7 @@ where
     }
 }
 
-pub type PolkadotSignedExtrinsic<Call> = Transaction<AccountId32, Call, MultiSignature, Payload>;
+pub type PolkadotSignedExtrinsic<Call> = Transaction<AccountId, Call, MultiSignature, Payload>;
 
 #[derive(Clone)]
 pub struct SignedTransactionBuilder<Call> {
@@ -357,7 +357,7 @@ mod tests {
         let keypair = KeyPairBuilder::<Sr25519>::from_seed(&seed);
         let currency = BalanceBuilder::new(Currency::Westend);
         let destination =
-            AccountId32::from_ss58_address("5G3j1t2Ho1e4MfiLvce9xEXWjmJSpExoxAbPp5aGDjerS9nC")
+            AccountId::from_ss58_address("5G3j1t2Ho1e4MfiLvce9xEXWjmJSpExoxAbPp5aGDjerS9nC")
                 .unwrap();
 
         let call = TransferKeepAlive {

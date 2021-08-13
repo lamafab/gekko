@@ -1,9 +1,9 @@
-use parity_scale_codec::{Decode, Encode, Input};
-use sp_core::crypto::{Pair, Ss58AddressFormat, Ss58Codec};
+//! This module contains useful primitives when working with the [runtime](crate::runtime).
 
-/// Reexport of the SCALE codec crate.
+use parity_scale_codec::{Decode, Encode, Input};
+use sp_core::crypto::{AccountId32, Pair, Ss58AddressFormat, Ss58Codec};
+
 pub extern crate parity_scale_codec as scale;
-/// Reexport of the Substrate *sp_core* crate. Contains sharable Substrate types.
 pub extern crate sp_core;
 
 pub type Sr25519 = sp_core::sr25519::Pair;
@@ -137,10 +137,7 @@ fn balance_builder() {
     assert_eq!(dot.as_metric(Metric::Kilo), 50_000 / 1_000);
     assert_eq!(dot.as_metric(Metric::Mega), 0);
 
-    assert_eq!(
-        dot.native(),
-        Currency::Polkadot.base_unit() * 50_000
-    );
+    assert_eq!(dot.native(), Currency::Polkadot.base_unit() * 50_000);
 }
 
 // TODO: Add convenience handlers for DOT/KSM.
@@ -300,33 +297,94 @@ impl From<sp_core::ecdsa::Signature> for MultiSignature {
 }
 
 // TODO: Implement MultiAddress.
+pub struct MultiAddress;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AccountId32([u8; 32]);
+/// An opaque 32-byte identifier of an on-chain account.
+///
+/// Usually contains the public key (or its hash in case of ECDSA). This is a
+/// simpler implementation of [Substrates
+/// `AccountId32`](sp_core::crypto::AccountId32) with some convenience methods.
+/// You also use that one instead or convert into it (or from it).
+///
+/// ```
+/// use crate::common::sp_core::crypto::AccountId32;
+///
+/// let account_id =
+///     AccountId::from_ss58_address("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
+///     .unwrap();
+///
+/// // Convert this type into Substrates `AccountId32`
+/// let sub: AccountId32 = account_id.into();
+///
+/// // Convert it back into the native type.
+/// let account_id: AccountId = sub.into();
+/// ```
+///
+/// **Note**: This type should only be used to encode transactions, not decode
+/// those. Officially, Kusama and Polkadot support multiple cryptographic
+/// identifiers and [`MultiAddress`] should therefore be used for decoding.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AccountId([u8; 32]);
 
 // TODO: Consider adding hex handler.
-impl AccountId32 {
+impl AccountId {
+    /// Creates a new account identifier from a byte array.
     pub fn new(bytes: [u8; 32]) -> Self {
-        AccountId32(bytes)
+        AccountId(bytes)
     }
+    /// Creates a new account identifier from a SS58 encoded string.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let account_id =
+    ///     AccountId::from_ss58_address("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
+    ///     .unwrap();
+    /// ```
     pub fn from_ss58_address(addr: &str) -> Result<Self, ()> {
         let (account, _) = Self::from_ss58check_with_version(addr).unwrap();
         Ok(account)
     }
+    /// Creates a new account identifier from a SS58 encoded string and returns
+    /// the identified SS58 Address format.
+    ///
+    /// # Example
+    /// ```
+    /// let (account_id, version) =
+    ///     AccountId::from_ss58_address_with_version("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
+    ///     .unwrap();
+    ///
+    /// assert_eq!(version, Ss58AddressFormat::Kusama);
+    /// ```
     pub fn from_ss58_address_with_version(addr: &str) -> Result<(Self, Ss58AddressFormat), ()> {
         let (account, format) = Self::from_ss58check_with_version(addr).unwrap();
         Ok((account, format))
     }
+    /// Returns the SS58 encoded representation of the account identifiers,
+    /// based on the specified format.
     pub fn to_ss58_address(&self, format: Ss58AddressFormat) -> String {
         self.to_ss58check_with_version(format)
     }
-    /// Returns the underlying public key or the blake2b hash in case of ECDSA.
+    /// Returns the underlying byte array of the account identifier. Usually the
+    /// public key of the account.
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0
     }
 }
 
-impl Encode for AccountId32 {
+impl From<AccountId> for AccountId32 {
+    fn from(val: AccountId) -> Self {
+        AccountId32::new(val.to_bytes())
+    }
+}
+
+impl From<AccountId32> for AccountId {
+    fn from(val: AccountId32) -> Self {
+        AccountId::new(*val.as_ref())
+    }
+}
+
+impl Encode for AccountId {
     fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
         let mut buffer = [0; 33];
 
@@ -338,7 +396,7 @@ impl Encode for AccountId32 {
     }
 }
 
-impl Decode for AccountId32 {
+impl Decode for AccountId {
     fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
         let mut buffer = [0; 32];
         let idx = input.read_byte()?;
@@ -348,37 +406,37 @@ impl Decode for AccountId32 {
 
         input.read(&mut buffer)?;
 
-        Ok(AccountId32(buffer))
+        Ok(AccountId(buffer))
     }
 }
 
-impl Ss58Codec for AccountId32 {}
+impl Ss58Codec for AccountId {}
 
-impl AsRef<[u8]> for AccountId32 {
+impl AsRef<[u8]> for AccountId {
     fn as_ref(&self) -> &[u8] {
         &self.0[..]
     }
 }
 
-impl AsMut<[u8]> for AccountId32 {
+impl AsMut<[u8]> for AccountId {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0[..]
     }
 }
 
-impl From<sp_core::sr25519::Public> for AccountId32 {
+impl From<sp_core::sr25519::Public> for AccountId {
     fn from(val: sp_core::sr25519::Public) -> Self {
-        AccountId32(val.0)
+        AccountId(val.0)
     }
 }
 
-impl From<sp_core::ed25519::Public> for AccountId32 {
+impl From<sp_core::ed25519::Public> for AccountId {
     fn from(val: sp_core::ed25519::Public) -> Self {
-        AccountId32(val.0)
+        AccountId(val.0)
     }
 }
 
-impl From<MultiKeyPair> for AccountId32 {
+impl From<MultiKeyPair> for AccountId {
     fn from(val: MultiKeyPair) -> Self {
         match val {
             MultiKeyPair::Ed25519(pair) => pair.public().into(),

@@ -83,6 +83,40 @@ where
 
 pub type PolkadotSignedExtrinsic<Call> = Transaction<AccountId, Call, MultiSignature, Payload>;
 
+/// Builder type for creating signed transactions.
+///
+/// # Example
+///
+/// ```
+/// // In this example, a random key is generated. You probably want to *import* one.
+/// let (keypair, _) = KeyPairBuilder::<Sr25519>::generate();
+/// let currency = BalanceBuilder::new(Currency::Polkadot);
+///
+/// // The destination address.
+/// let destination =
+///     AccountId::from_ss58_address("12eDex4amEwj39T7Wz4Rkppb68YGCDYKG9QHhEhHGtNdDy7D")
+///         .unwrap();
+///
+/// // Send 50 DOT to the destination.
+/// let call = TransferKeepAlive {
+///     dest: destination,
+///     value: currency.balance(50),
+/// };
+///
+/// // Transaction fee.
+/// let payment = currency.balance_as_metric(Metric::Milli, 10).unwrap();
+///
+/// // Build the final transaction.
+/// let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
+///     .signer(keypair)
+///     .call(call)
+///     .nonce(0)
+///     .payment(payment)
+///     .network(Network::Polkadot)
+///     .spec_version(9080)
+///     .build()
+///     .unwrap();
+/// ```
 #[derive(Clone)]
 pub struct SignedTransactionBuilder<Call> {
     signer: Option<MultiKeyPair>,

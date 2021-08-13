@@ -1,5 +1,5 @@
 //! This module contains useful primitives when working with the
-//! [runtime](gekko::runtime).
+//! [runtime](gekko).
 
 use parity_scale_codec::{Compact, Decode, Encode, Input};
 use sp_core::crypto::{AccountId32, Pair, Ss58AddressFormat, Ss58Codec};
@@ -101,7 +101,7 @@ pub struct OpaqueBalance;
 ///
 /// ```
 /// use gekko::common::*;
-/// use gekko::runtime::polkadot::extrinsics::balances::TransferKeepAlive;
+/// use gekko::polkadot::extrinsics::balances::TransferKeepAlive;
 ///
 /// let destination =
 ///     AccountId::from_ss58_address("12eDex4amEwj39T7Wz4Rkppb68YGCDYKG9QHhEhHGtNdDy7D")
@@ -232,7 +232,7 @@ pub enum Metric {
     Giga  =  1_000_000_000,
     Mega  =  1_000_000,
     Kilo  =  1_000,
-    One  =  1,
+    One   =  1,
     Milli = -1_000,
     Micro = -1_000_000,
     Nano  = -1_000_000_000,

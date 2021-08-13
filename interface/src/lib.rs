@@ -22,11 +22,12 @@ pub mod transaction;
 // TODO: Rename to "primitives"?
 pub mod common;
 
+/// Types and interfaces to interact with runtimes.
 pub mod runtime {
     pub mod polkadot {
         pub use latest::*;
 
-        /// The latest runtime interface.
+        /// The latest runtime types and interfaces.
         mod latest {
             /// The latest spec version.
             pub const SPEC_VERSION: u32 = 9050;
@@ -39,13 +40,13 @@ pub mod runtime {
     pub mod kusama {
         pub use latest::*;
 
-        /// The latest runtime interface.
+        /// The latest runtime types and interfaces.
         mod latest {
             /// The latest spec version.
             pub const SPEC_VERSION: u32 = 9080;
 
             #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_kusama_9080.hex")]
-            struct RM9080;
+            struct A;
         }
     }
 }

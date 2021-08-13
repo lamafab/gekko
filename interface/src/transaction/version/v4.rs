@@ -139,7 +139,7 @@ impl<Call: Encode> SignedTransactionBuilder<Call> {
     // TODO: Rename to "fee"
     pub fn payment(self, payment: Balance) -> Self {
         Self {
-            payment: Some(payment.native()),
+            payment: Some(payment.as_base_unit()),
             ..self
         }
     }
@@ -327,7 +327,9 @@ mod tests {
         };
 
         // Transaction fee.
-        let payment = BalanceBuilder::new(Currency::Westend).balance_as_metric(Metric::Milli, 500);
+        let payment = BalanceBuilder::new(Currency::Westend)
+            .balance_as_metric(Metric::Milli, 500)
+            .unwrap();
 
         let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
             .signer(keypair)
@@ -362,13 +364,13 @@ mod tests {
 
         let call = TransferKeepAlive {
             dest: destination,
-            value: Compact::from(currency.balance(1).native()),
+            value: Compact::from(currency.balance(1).as_base_unit()),
         };
 
-        println!(">> 0x{}", hex::encode(&call.encode()));
+        println!("CALL >> 0x{}", hex::encode(&call.encode()));
 
         // Transaction fee.
-        let payment = currency.balance_as_metric(Metric::Milli, 500);
+        let payment = currency.balance_as_metric(Metric::Milli, 500).unwrap();
 
         let transaction: PolkadotSignedExtrinsic<_> = SignedTransactionBuilder::new()
             .signer(keypair)
@@ -380,6 +382,9 @@ mod tests {
             .build()
             .unwrap();
 
-        println!("HEX: 0x{}", hex::encode(&transaction.encode()));
+        println!(
+            "SIGNED TRANSACTION >> 0x{}",
+            hex::encode(&transaction.encode())
+        );
     }
 }

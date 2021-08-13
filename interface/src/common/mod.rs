@@ -57,6 +57,8 @@ pub struct BalanceBuilder;
 
 impl BalanceBuilder {
     pub fn new(currency: Currency) -> BalanceWithUnit {
+        // TODO: Make sure `unit` is never zero.
+
         BalanceWithUnit {
             unit: currency.base_unit(),
         }
@@ -71,17 +73,23 @@ pub struct BalanceWithUnit {
 impl BalanceWithUnit {
     // TODO: Consider removing this. Metric should be explicit.
     pub fn balance(self, balance: u128) -> Balance {
-        self.balance_as_metric(Metric::Base, balance)
+        self.balance_as_metric(Metric::One, balance).unwrap()
     }
     // TODO: Rename.
-    pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Balance {
-        Balance {
-            balance: convert_metrics(metric, Metric::Base, balance).saturating_mul(self.unit),
+    // TODO: Should return Result
+    pub fn balance_as_metric(self, metric: Metric, balance: u128) -> Option<Balance> {
+        Some(Balance {
+            balance: convert_metrics(metric, Metric::One, balance)?.saturating_mul(self.unit),
             unit: self.unit,
-        }
+        })
     }
 }
 
+/// Represents the balance of a chains native currency with metric conversion
+/// utility.
+///
+/// When creating or processing transactions, this types should be used to
+/// reliably handle balances and to do metric conversions.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Balance {
     balance: u128,
@@ -89,16 +97,62 @@ pub struct Balance {
 }
 
 impl Balance {
-    // TODO: Add warning.
-    pub fn native(&self) -> u128 {
+    /// Converts the balance into the base unit the **runtime** expects. For
+    /// example in Polkadot, `1` DOT equals `10_000_000_000` "Planck".
+    ///
+    /// ```
+    /// // Balance of 50 DOT.
+    /// let base_unit = BalanceBuilder::new(Currency::Polkadot).balance(50);
+    ///
+    /// assert_eq!(balance.base_unit(), 50 * 10_000_000_000);
+    /// ```
+    ///
+    /// When creating transactions, this is the value that should be used for
+    /// specifying balances.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate::runtime::polkadot::extrinsics::balances::TransferKeepAlive;
+    ///
+    /// let destination =
+    ///     AccountId::from_ss58_address("12eDex4amEwj39T7Wz4Rkppb68YGCDYKG9QHhEhHGtNdDy7D")
+    ///         .unwrap();
+    ///
+    /// let base_unit = BalanceBuilder::new(Currency::Polkadot)
+    ///     .balance(50)
+    ///     .as_base_unit();
+    ///
+    /// // Create a `transfer` extrinsic. Balance must
+    /// // be a SCALE encoded `Compact` value.
+    /// let call = TransferKeepAlive {
+    ///     dest: destination,
+    ///     value: Compact::from(base_unit),
+    /// };
+    /// ```
+    pub fn as_base_unit(&self) -> u128 {
         self.balance
     }
-    pub fn as_metric(&self, metric: Metric) -> u128 {
-        convert_metrics(Metric::Base, metric, self.balance) / self.unit
+    /// Converts the balance into the specified metric.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// // Balance of 50 DOT.
+    /// let balance = BalanceBuilder::new(Currency::Polkadot)
+    ///     .balance(50);
+    ///
+    /// assert_eq!(balance.as_metric(Metric::Micro), 50_000_000)
+    /// assert_eq!(balance.as_metric(Metric::Millis), 50_000)
+    /// // Cannot be represented in kilo.
+    /// assert_eq!(balance.as_metric(Metric::Kilo), None)
+    /// ```
+    pub fn as_metric(&self, metric: Metric) -> Option<u128> {
+        Some(convert_metrics(Metric::One, metric, self.balance)? / self.unit)
     }
 }
 
-fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> u128 {
+fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> Option<u128> {
     // Converts negative number to positive.
     fn pos(n: i128) -> u128 {
         let n = if n < 0 { n * -1 } else { n };
@@ -111,12 +165,18 @@ fn convert_metrics(prev_metric: Metric, new_metric: Metric, balance: u128) -> u1
     let max = pos(new_metric).max(pos(prev_metric));
     let min = pos(new_metric).min(pos(prev_metric));
 
-    if new_metric > prev_metric {
+    let balance = if new_metric > prev_metric {
         balance / (max / min)
     } else if new_metric < prev_metric {
         balance.saturating_mul(max * min)
     } else {
         balance
+    };
+
+    if balance == 0 {
+        None
+    } else {
+        Some(balance)
     }
 }
 
@@ -131,13 +191,13 @@ fn balance_builder() {
     let dot: Balance = BalanceBuilder::new(Currency::Polkadot).balance(50_000);
 
     // Convert DOT to micro-DOT.
-    assert_eq!(dot.as_metric(Metric::Micro), 50_000 * 1_000_000);
-    assert_eq!(dot.as_metric(Metric::Milli), 50_000 * 1_000);
-    assert_eq!(dot.as_metric(Metric::Base), 50_000);
-    assert_eq!(dot.as_metric(Metric::Kilo), 50_000 / 1_000);
-    assert_eq!(dot.as_metric(Metric::Mega), 0);
+    assert_eq!(dot.as_metric(Metric::Micro).unwrap(), 50_000 * 1_000_000);
+    assert_eq!(dot.as_metric(Metric::Milli).unwrap(), 50_000 * 1_000);
+    assert_eq!(dot.as_metric(Metric::One).unwrap(), 50_000);
+    assert_eq!(dot.as_metric(Metric::Kilo).unwrap(), 50_000 / 1_000);
+    assert_eq!(dot.as_metric(Metric::Mega), None);
 
-    assert_eq!(dot.native(), Currency::Polkadot.base_unit() * 50_000);
+    assert_eq!(dot.as_base_unit(), Currency::Polkadot.base_unit() * 50_000);
 }
 
 // TODO: Add convenience handlers for DOT/KSM.
@@ -149,7 +209,7 @@ pub enum Metric {
     Giga  =  1_000_000_000,
     Mega  =  1_000_000,
     Kilo  =  1_000,
-    Base  =  1,
+    One  =  1,
     Milli = -1_000,
     Micro = -1_000_000,
     Nano  = -1_000_000_000,
@@ -201,7 +261,6 @@ impl From<Ecdsa> for MultiKeyPair {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// TODO: Custom Encode/Decode implementation. See https://substrate.dev/rustdocs/latest/sp_runtime/generic/enum.Era.html
 pub enum Mortality {
     Immortal,
     Mortal(u64, u64, Option<[u8; 32]>),
@@ -339,7 +398,7 @@ impl AccountId {
     /// ```
     /// let account_id =
     ///     AccountId::from_ss58_address("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
-    ///     .unwrap();
+    ///         .unwrap();
     /// ```
     pub fn from_ss58_address(addr: &str) -> Result<Self, ()> {
         let (account, _) = Self::from_ss58check_with_version(addr).unwrap();
@@ -352,7 +411,7 @@ impl AccountId {
     /// ```
     /// let (account_id, version) =
     ///     AccountId::from_ss58_address_with_version("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
-    ///     .unwrap();
+    ///         .unwrap();
     ///
     /// assert_eq!(version, Ss58AddressFormat::Kusama);
     /// ```

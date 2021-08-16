@@ -410,7 +410,7 @@ pub enum MultiAddress {
 /// simpler implementation of [Substrates
 /// `AccountId32`](sp_core::crypto::AccountId32) with some convenience methods
 /// (which can be used instead, if desired). It also implements the necessary
-/// Encode/Decode functionality to make it suitable to be used in transactions
+/// encode/decode functionality to make it suitable to be used in transactions
 /// without having to wrap it in [`MultiAddress`].
 ///
 /// **Note**: This type should only be used to encode transactions, not decode
@@ -418,12 +418,11 @@ pub enum MultiAddress {
 /// identifiers and [`MultiAddress`] should therefore be used for decoding.
 ///
 /// ```
-/// use gekko::common::*;
-/// use gekko::common::sp_core::crypto::AccountId32;
+/// use gekko::common::{*, sp_core::crypto::AccountId32};
 ///
 /// let account_id =
 ///     AccountId::from_ss58_address("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
-///     .unwrap();
+///         .unwrap();
 ///
 /// // Convert this type into Substrates `AccountId32`
 /// let sub: AccountId32 = account_id.into();

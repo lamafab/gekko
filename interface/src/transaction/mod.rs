@@ -6,7 +6,18 @@
 //!
 //! The easiest way to create transactions is to use the
 //! [`SignedTransactionBuilder`] type.
-pub mod v4;
 
 // Re-export the latest version.
 pub use v4::{PolkadotSignedExtrinsic, SignedTransactionBuilder, Transaction};
+
+// Version 4 of the transaction format.
+pub mod v4;
+
+/// TODO.
+pub mod v5 {}
+/// TODO.
+pub mod v3 {}
+/// TODO.
+pub mod v2 {}
+/// TODO.
+pub mod v1 {}

@@ -5,7 +5,7 @@
 //! encode/decode those transaction.
 //!
 //! The project is split into multiple crates, although all functionality can be
-//! exposed by just using `gekko`. 
+//! exposed by just using `gekko`.
 //! * `gekko` - Contains runtime interfaces to interact with Kusama, Polkadot
 //!   and Westend, including creating transactions.
 //! * `gekko-metadata` - Utilities to parse and process substrate metadata.

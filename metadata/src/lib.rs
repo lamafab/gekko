@@ -14,15 +14,25 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub mod version;
 
+/// Parameters and other information about an individual extrinsic.
 pub struct ExtrinsicInfo<'a> {
+    /// The module Id. This is required when encoding the final extrinsic.
     pub module_id: usize,
+    /// The dispatch Id. This is required when encoding the final extrinsic.
     pub dispatch_id: usize,
+    /// The name of the module.
     pub module_name: &'a str,
+    /// The name of the extrinsic.
     pub extrinsic_name: &'a str,
+    /// Arguments that must be passed as the extrinsics body. A sequence of
+    /// key-value pairs, indicating the name and the type, respectively.
     pub args: Vec<(&'a str, &'a str)>,
+    /// Documentation of the extrinsic, as provided by the Substrate metadata.
     pub documentation: Vec<&'a str>,
 }
 
+/// An interface to retrieve information about extrinsics on any Substrate
+/// metadata version.
 pub trait ModuleMetadataExt {
     fn modules_extrinsics<'a>(&'a self) -> Vec<ExtrinsicInfo<'a>>;
     fn find_module_extrinsic<'a>(
@@ -32,6 +42,7 @@ pub trait ModuleMetadataExt {
     ) -> Result<Option<ExtrinsicInfo<'a>>>;
 }
 
+/// Errors that can occur when parsing Substrate metadata.
 #[derive(Debug)]
 pub enum Error {
     ParseJsonRpcMetadata(SerdeJsonError),
@@ -40,14 +51,18 @@ pub enum Error {
     InvalidMetadataVersion,
 }
 
+/// Helper type when dealing with the Json RPC response returned by
+/// Substrates `state_getMetadata`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct JsonRpcResponse {
     pub jsonrpc: String,
     pub result: String,
 }
 
-// Convenience function for parsing the Json RPC response returned by
-// `state_getMetadata`. Must fit the [`JsonRpcResponse`] structure.
+/// Convenience function for parsing the Json RPC response returned by Substrates
+/// `state_getMetadata`.
+///
+/// Must fit the [`JsonRpcResponse`] structure.
 pub fn parse_jsonrpc_metadata<T: AsRef<[u8]>>(json: T) -> Result<MetadataVersion> {
     let resp = serde_json::from_slice::<JsonRpcResponse>(json.as_ref())
         .map_err(|err| Error::ParseJsonRpcMetadata(err))?;
@@ -55,8 +70,8 @@ pub fn parse_jsonrpc_metadata<T: AsRef<[u8]>>(json: T) -> Result<MetadataVersion
     parse_hex_metadata(resp.result.as_bytes())
 }
 
-// Convenience function for parsing the metadata from a HEX representation, as
-// returned by `state_getMetadata`.
+/// Convenience function for parsing the metadata from a HEX representation, as
+/// returned by `state_getMetadata`.
 pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
     let hex = hex.as_ref();
 
@@ -70,6 +85,7 @@ pub fn parse_hex_metadata<T: AsRef<[u8]>>(hex: T) -> Result<MetadataVersion> {
     parse_raw_metadata(hex::decode(slice).map_err(|err| Error::ParseHexMetadata(err))?)
 }
 
+/// Parse the raw Substrate metadata.
 pub fn parse_raw_metadata<T: AsRef<[u8]>>(raw: T) -> Result<MetadataVersion> {
     let raw = raw.as_ref();
 
@@ -87,6 +103,7 @@ pub fn parse_raw_metadata<T: AsRef<[u8]>>(raw: T) -> Result<MetadataVersion> {
     MetadataVersion::decode(&mut slice).map_err(|err| Error::ParseRawMetadata(err))
 }
 
+/// Identifier of all the available Substrate metadata versions.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum MetadataVersion {
     V0,

@@ -378,15 +378,44 @@ impl From<sp_core::ecdsa::Signature> for MultiSignature {
     }
 }
 
-// TODO: Implement MultiAddress.
-pub struct MultiAddress;
+/// A multi-format address wrapper for on-chain accounts. This is the
+/// recommended type to decode transactions, while [`AccountId`] can be used for
+/// convenience when encoding.
+///
+/// # Example
+///
+/// ```
+/// use gekko::common::{*, scale::Encode, sp_core::crypto::AccountId32};
+///
+/// let account_id =
+///     AccountId::from_ss58_address("D12RroVkrWavttGJ1g3iHNmDa68kyMsSeXvoZ1xPm8828kk")
+///     .unwrap();
+///
+/// let multi = MultiAddress::Id(AccountId32::from(account_id));
+///
+/// assert_eq!(account_id.encode(), multi.encode());
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum MultiAddress {
+    Id(sp_core::crypto::AccountId32),
+    Index(#[codec(compact)] u64),
+    Raw(Vec<u8>),
+    Address32([u8; 32]),
+    Address20([u8; 20]),
+}
 
 /// An opaque 32-byte identifier of an on-chain account.
 ///
 /// Usually contains the public key (or its hash in case of ECDSA). This is a
 /// simpler implementation of [Substrates
-/// `AccountId32`](sp_core::crypto::AccountId32) with some convenience methods.
-/// You also use that one instead or convert into it (or from it).
+/// `AccountId32`](sp_core::crypto::AccountId32) with some convenience methods
+/// (which can be used instead, if desired). It also implements the necessary
+/// Encode/Decode functionality to make it suitable to be used in transactions
+/// without having to wrap it in [`MultiAddress`].
+///
+/// **Note**: This type should only be used to encode transactions, not decode
+/// those. Officially, Kusama and Polkadot support multiple account
+/// identifiers and [`MultiAddress`] should therefore be used for decoding.
 ///
 /// ```
 /// use gekko::common::*;
@@ -402,10 +431,6 @@ pub struct MultiAddress;
 /// // Convert it back into the native type.
 /// let account_id: AccountId = sub.into();
 /// ```
-///
-/// **Note**: This type should only be used to encode transactions, not decode
-/// those. Officially, Kusama and Polkadot support multiple cryptographic
-/// identifiers and [`MultiAddress`] should therefore be used for decoding.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AccountId([u8; 32]);
 

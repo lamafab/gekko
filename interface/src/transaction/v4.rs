@@ -88,6 +88,10 @@ pub type PolkadotSignedExtrinsic<Call> = Transaction<AccountId, Call, MultiSigna
 /// # Example
 ///
 /// ```
+/// use gekko::common::*;
+/// use gekko::transaction::v4::*;
+/// use gekko::runtime::polkadot::extrinsics::balances::TransferKeepAlive;
+///
 /// // In this example, a random key is generated. You probably want to *import* one.
 /// let (keypair, _) = KeyPairBuilder::<Sr25519>::generate();
 /// let currency = BalanceBuilder::new(Currency::Polkadot);

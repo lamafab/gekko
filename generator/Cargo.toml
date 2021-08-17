@@ -1,6 +1,6 @@
 [package]
 name = "gekko-generator"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2018"
 authors = ["Fabio Lama <fabio.lama@pm.me>"]
 license = "MIT"
@@ -14,7 +14,7 @@ documentation = "https://docs.rs/gekko-generator"
 proc-macro = true
 
 [dependencies]
-gekko-metadata = { version = "0.1.0", path = "../metadata" }
+gekko-metadata = { version = "0.1.2", path = "../metadata" }
 quote = "1.0.9"
 syn = "1.0.73"
 proc-macro2 = "1.0.27"

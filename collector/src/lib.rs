@@ -72,7 +72,7 @@ impl Filesystem {
     }
     fn track_latest_state(&self, state: &LatestInfo) -> Result<()> {
         let mut file = File::create(&format!("{}{}", self.path(), Self::STATE))?;
-        file.write_all(serde_json::to_string(&state)?.as_bytes())?;
+        file.write_all(serde_json::to_string_pretty(&state)?.as_bytes())?;
         file.sync_all()?;
 
         Ok(())

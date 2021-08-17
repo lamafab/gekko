@@ -2,5 +2,6 @@
 members = [
 	"metadata",
 	"generator",
-	"interface"
+	"interface",
+	"collector"
 ]

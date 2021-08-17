@@ -1,3 +1,27 @@
+//! Utilities to parse and process substrate metadata. Can also be enabled in `gekko` with the `"metadata"` feature.
+//!
+//! # Example
+//!
+//! ```no_run
+//! // Parse runtime metadata
+//! let content = std::fs::read_to_string("metadata_kusama_9080.hex").unwrap();
+//! let data = parse_hex_metadata(content).unwrap().into_inner();
+//!
+//! let info = data
+//!     .find_module_extrinsic("Balances", "transfer_keep_alive")
+//!     .unwrap();
+//!
+//! assert_eq!(info.module_id, 4);
+//! assert_eq!(info.dispatch_id, 3);
+//! assert_eq!(
+//!     info.args,
+//!     vec![
+//!         ("dest", "<T::Lookup as StaticLookup>::Source"),
+//!         ("value", "Compact<T::Balance>"),
+//!     ]
+//! );
+//! ```
+
 // INFO: The earliest metadata versions are available in the substrate repo at
 // commit: a31c01b398d958ccf0a24d8c1c11fb073df66212
 
@@ -15,6 +39,7 @@ type Result<T> = std::result::Result<T, Error>;
 pub mod version;
 
 /// Parameters and other information about an individual extrinsic.
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ExtrinsicInfo<'a> {
     /// The module Id. This is required when encoding the final extrinsic.
     pub module_id: usize,
@@ -39,7 +64,7 @@ pub trait ModuleMetadataExt {
         &'a self,
         method: &str,
         extrinsic: &str,
-    ) -> Result<Option<ExtrinsicInfo<'a>>>;
+    ) -> Option<ExtrinsicInfo<'a>>;
 }
 
 /// Errors that can occur when parsing Substrate metadata.

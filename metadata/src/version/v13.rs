@@ -1,4 +1,4 @@
-use crate::{ExtrinsicInfo, ModuleMetadataExt, Result};
+use crate::{ExtrinsicInfo, ModuleMetadataExt};
 
 // TODO: Should implement Serialize/Deserialize.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -166,9 +166,8 @@ impl ModuleMetadataExt for MetadataV13 {
         &'a self,
         method: &str,
         extrinsic: &str,
-    ) -> Result<Option<ExtrinsicInfo<'a>>> {
-        Ok(self
-            .modules
+    ) -> Option<ExtrinsicInfo<'a>> {
+        self.modules
             .iter()
             .enumerate()
             .find(|(_, mod_meta)| mod_meta.name.as_str() == method)
@@ -187,6 +186,6 @@ impl ModuleMetadataExt for MetadataV13 {
                         })
                 })
             })
-            .and_then(|res| res?))
+            .and_then(|res| res?)
     }
 }

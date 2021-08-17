@@ -1,4 +1,5 @@
 //! ⚠️ This project is heavily work-in-progress and not ready for production ⚠️
+//! => **API breakage expected!**
 //!
 //! Gekko offers utilities to parse substrate metadata, generate the
 //! corresponding Rust interfaces, create transactions and the ability to
@@ -9,10 +10,10 @@
 //! * `gekko` - Contains runtime interfaces to interact with Kusama, Polkadot
 //!   and Westend, including creating transactions.
 //! * `gekko-metadata` - Utilities to parse and process substrate metadata.
-//!   * Can be enabled in `gekko` with the `"metadata"` feature.
+//!   * Can also be enabled in `gekko` with the `"metadata"` feature.
 //! * `gekko-generator` - Macro to generate Rust interfaces during compile time
 //!   based on the the parsed substrate metadata.
-//!   * Can be enabled in `gekko` with the `"generator"` feature.
+//!   * Can also be enabled in `gekko` with the `"generator"` feature.
 //!
 //! # Interacting with the runtime
 //!

@@ -142,7 +142,7 @@ pub mod runtime {
             /// The latest spec version.
             pub const SPEC_VERSION: u32 = 9050;
 
-            #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_polkadot_9050.hex")]
+            #[gekko_generator::parse_from_hex_file("dumps/metadata_polkadot_9050.hex")]
             struct A;
         }
     }
@@ -155,7 +155,7 @@ pub mod runtime {
             /// The latest spec version.
             pub const SPEC_VERSION: u32 = 9080;
 
-            #[gekko_generator::parse_from_hex_file("dumps/hex/metadata_kusama_9080.hex")]
+            #[gekko_generator::parse_from_hex_file("dumps/metadata_kusama_9080.hex")]
             struct A;
         }
     }

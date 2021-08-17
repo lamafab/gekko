@@ -1,4 +1,3 @@
 /target
 Cargo.lock
 publish.sh
-interface/dumps

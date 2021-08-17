@@ -1,5 +1,4 @@
-//! ⚠️ This project is heavily work-in-progress and not ready for production ⚠️
-//! => **API breakage expected!**
+//! ⚠️ This project is heavily work-in-progress and not ready for production => **API breakage expected!**
 //!
 //! Gekko offers utilities to parse substrate metadata, generate the
 //! corresponding Rust interfaces, create transactions and the ability to
@@ -39,7 +38,7 @@
 //! accordingly. Take a look at the [`common`] module which contains utilities
 //! for creating transaction.
 //!
-//! # Example
+//! ###  Example
 //!
 //! ```
 //! use gekko::common::*;
@@ -71,13 +70,43 @@
 //!     .nonce(0)
 //!     .payment(payment)
 //!     .network(Network::Polkadot)
-//!     .spec_version(9080)
+//!     .spec_version(9050)
 //!     .build()
 //!     .unwrap();
 //! ```
 //!
-//! # Parsing Metadata and generating interfaces
-//! Builder type for creating signed transactions.
+//! # Parsing Metadata
+//!
+//! Gekko offers utilities that allow you to search for specific extrinsics or
+//! to iterate through all of those.
+//!
+//! ## Example
+//!
+//! ```no_run
+//! use gekko::metadata::*;
+//!
+//! // Parse runtime metadata
+//! let content = std::fs::read_to_string("metadata_kusama_9080.hex").unwrap();
+//! let data = parse_hex_metadata(content).unwrap().into_inner();
+//!
+//! // Get information about the extrinsic.
+//! let extr = data
+//!     .find_module_extrinsic("Balances", "transfer_keep_alive")
+//!     .unwrap();
+//!
+//! assert_eq!(extr.module_id, 4);
+//! assert_eq!(extr.dispatch_id, 3);
+//! assert_eq!(
+//!     extr.args,
+//!     vec![
+//!         ("dest", "<T::Lookup as StaticLookup>::Source"),
+//!         ("value", "Compact<T::Balance>"),
+//!     ]
+//! );
+//! ```
+//!
+//! A macro available in `gekko::generator` will parse the metadata
+//! automatically for you and generate the Rust interfaces at compile time.
 
 pub use runtime::*;
 

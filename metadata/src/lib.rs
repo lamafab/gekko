@@ -1,20 +1,24 @@
-//! Utilities to parse and process substrate metadata. Can also be enabled in `gekko` with the `"metadata"` feature.
+//! Utilities to parse and process substrate metadata. Can also be enabled in
+//! `gekko` with the `"metadata"` feature.
 //!
 //! # Example
 //!
 //! ```no_run
+//! use gekko_metadata::*;
+//!
 //! // Parse runtime metadata
 //! let content = std::fs::read_to_string("metadata_kusama_9080.hex").unwrap();
 //! let data = parse_hex_metadata(content).unwrap().into_inner();
 //!
-//! let info = data
+//! // Get information about the extrinsic.
+//! let extr = data
 //!     .find_module_extrinsic("Balances", "transfer_keep_alive")
 //!     .unwrap();
 //!
-//! assert_eq!(info.module_id, 4);
-//! assert_eq!(info.dispatch_id, 3);
+//! assert_eq!(extr.module_id, 4);
+//! assert_eq!(extr.dispatch_id, 3);
 //! assert_eq!(
-//!     info.args,
+//!     extr.args,
 //!     vec![
 //!         ("dest", "<T::Lookup as StaticLookup>::Source"),
 //!         ("value", "Compact<T::Balance>"),

@@ -117,7 +117,7 @@ pub type PolkadotSignedExtrinsic<Call> = Transaction<AccountId, Call, MultiSigna
 ///     .nonce(0)
 ///     .payment(payment)
 ///     .network(Network::Polkadot)
-///     .spec_version(9080)
+///     .spec_version(9050)
 ///     .build()
 ///     .unwrap();
 /// ```

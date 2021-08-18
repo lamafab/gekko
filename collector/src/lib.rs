@@ -1,3 +1,7 @@
+#[macro_use]
+extern crate log;
+
+use anyhow::anyhow;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fs::File;
@@ -11,8 +15,10 @@ const TIMEOUT: u64 = 10;
 type Result<T> = std::result::Result<T, anyhow::Error>;
 
 // TODO
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectorConfig {
     chain_name: String,
 }
@@ -32,7 +38,11 @@ impl Filesystem {
     fn path(&self) -> String {
         format!("{}/{}/", Self::LOCATION, self.config.chain_name)
     }
-    fn save_runtime_metadata(&self, version: RuntimeVersion, metadata: MetadataHex) -> Result<()> {
+    fn save_runtime_metadata(
+        &self,
+        version: &RuntimeVersion,
+        metadata: &MetadataHex,
+    ) -> Result<()> {
         // Save information about the runtime version.
         let mut file = File::create(&format!(
             "{}version_{}_{}.json",
@@ -81,7 +91,6 @@ impl Filesystem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LatestInfo {
-    spec_name: String,
     spec_version: u64,
     last_block: u64,
 }
@@ -123,31 +132,80 @@ enum RpcMethod {
 impl RpcMethod {
     fn as_str(&self) -> &'static str {
         match self {
-            Header => "chain_getHeader",
-            BlockHash => "chain_getBlockHash",
-            RuntimeVersion => "state_getRuntimeVersion",
-            Metadata => "state_getMetadata",
+            Self::Header => "chain_getHeader",
+            Self::BlockHash => "chain_getBlockHash",
+            Self::RuntimeVersion => "state_getRuntimeVersion",
+            Self::Metadata => "state_getMetadata",
         }
     }
 }
 
-pub async fn local() -> Result<()> {
+pub async fn local(config: CollectorConfig) -> Result<()> {
+    let fs = Filesystem::new(config.clone());
+
+    // Fetch the latest known block number.
     let mut latest = latest_block().await?;
 
-    let mut current_block = 0;
+    // Retrieve the last block number from where data should start being fetched from.
+    let mut state = fs
+        .read_last_state()?
+        .map(|mut state| {
+            state.last_block += 1;
+            state
+        })
+        .unwrap_or(LatestInfo {
+            spec_version: 0,
+            last_block: 0,
+        });
+
     loop {
+        // Do not skip block 0 when starting at the beginning.
+        let from = if state.last_block == 0 {
+            state.last_block
+        } else {
+            state.last_block + 1
+        };
+
+        // Set range of block numbers, do not exceed limit.
         let to = latest.min(BLOCK_HASH_LIMIT);
-        let range = (current_block..=to).collect();
+        let range = (from..=to).collect();
 
         let header_hashes = get::<Vec<u64>, Vec<String>>(RpcMethod::BlockHash, range).await?;
         for hash in header_hashes {
             let version = get::<_, RuntimeVersion>(RpcMethod::RuntimeVersion, hash.clone()).await?;
-            let metadata = get::<_, MetadataHex>(RpcMethod::RuntimeVersion, hash).await?;
+            let metadata = get::<_, MetadataHex>(RpcMethod::Metadata, hash).await?;
+
+            if version.spec_name != config.chain_name {
+                return Err(anyhow!(
+                    "Fetching data from the wrong chain, expected {}, got {}",
+                    config.chain_name,
+                    version.spec_name,
+                ));
+            }
+
+            if version.spec_version != state.spec_version {
+                info!(
+                    "Found new runtime version {} at block {}",
+                    version.spec_version, state.last_block
+                );
+
+                fs.save_runtime_metadata(&version, &metadata)?;
+            } else {
+                debug!(
+                    "No new version found at block {}, continuing",
+                    version.spec_version
+                );
+            }
+
+            state.last_block += 1;
+            state.spec_version = version.spec_version;
+
+            fs.track_latest_state(&state)?;
         }
 
-        current_block = to + 1;
+        //fs.track_latest_state(state)?;
 
-        if latest < current_block {
+        if latest < state.last_block {
             sleep(Duration::from_secs(TIMEOUT)).await;
             latest = latest_block().await?;
         }
@@ -181,15 +239,15 @@ pub struct Header {
 pub struct RuntimeVersion {
     pub apis: Vec<(String, i64)>,
     #[serde(rename = "authoringVersion")]
-    pub authoring_version: i64,
+    pub authoring_version: u64,
     #[serde(rename = "implName")]
     pub impl_name: String,
     #[serde(rename = "implVersion")]
-    pub impl_version: i64,
+    pub impl_version: u64,
     #[serde(rename = "specName")]
     pub spec_name: String,
     #[serde(rename = "specVersion")]
-    pub spec_version: i64,
+    pub spec_version: u64,
 }
 
 /// Response when calling `state_getMetadata`.

@@ -121,14 +121,29 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
         let mut latest = latest_block(&url).await?;
 
         // Retrieve the last block number from where data should start being fetched from.
-        info!("Reading state from disk");
+        info!(
+            "Reading state from disk: '{}'",
+            format!("{}{}", fs.path(), Filesystem::STATE)
+        );
+
         let mut state = fs.read_last_state()?.unwrap_or(LatestInfo {
             spec_version: 0,
             last_block: 0,
         });
 
+        match state.last_block {
+            0 => info!("Starting collection from block number 0"),
+            b @ _ => info!("Continuing collection from block number {}", b),
+        }
+
         info!("Starting event loop");
         loop {
+            // Increment block number, don't skip block 0.
+            match state.last_block {
+                0 => {}
+                _ => state.last_block += 1,
+            }
+
             // Set range of block numbers, do not exceed limit.
             let from = state.last_block;
             let to = latest.min(state.last_block + BLOCK_HASH_LIMIT);
@@ -147,6 +162,7 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
                     config.chain_name,
                     hash
                 );
+
                 let version =
                     get::<_, RuntimeVersion>(&url, RpcMethod::RuntimeVersion, vec![hash.clone()])
                         .await?;
@@ -156,6 +172,7 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
                     config.chain_name,
                     hash
                 );
+
                 let metadata = get::<_, MetadataHex>(&url, RpcMethod::Metadata, vec![hash]).await?;
 
                 if version.spec_name != config.chain_name {
@@ -166,12 +183,13 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
                     ));
                 }
 
-                if version.spec_version != state.spec_version {
+                if version.spec_version != state.spec_version || state.last_block == 0 {
                     info!(
                         "{}: Found new runtime version {} at block {}, saving metadata...",
                         config.chain_name, version.spec_version, state.last_block
                     );
 
+                    state.spec_version = version.spec_version;
                     fs.save_runtime_metadata(&version, &metadata)?;
                 } else {
                     trace!(
@@ -181,12 +199,10 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
                     );
                 }
 
-                state.spec_version = version.spec_version;
                 fs.track_latest_state(&state)?;
-                state.last_block += 1;
             }
 
-            if latest < state.last_block {
+            if latest <= state.last_block {
                 sleep(Duration::from_secs(TIMEOUT)).await;
                 latest = latest_block(&url).await?;
             }

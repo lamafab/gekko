@@ -11,7 +11,7 @@ use std::path::Path;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::time::{sleep, Duration};
 
-const BLOCK_HASH_LIMIT: u64 = 50;
+const BLOCK_HASH_LIMIT: u64 = 30;
 const TIMEOUT: u64 = 10;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
@@ -27,11 +27,6 @@ struct CollectorConfig {
     chain_name: String,
     endpoint: String,
     directory: Option<String>,
-}
-
-/// Handler to save the collected information to disk.
-struct Filesystem {
-    config: CollectorConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,11 +92,11 @@ fn read_config() -> Result<Config> {
 }
 
 pub async fn run() -> Result<()> {
-    info!("Reading config...");
     env_logger::Builder::new()
         .filter_module("system", LevelFilter::Debug)
         .init();
 
+    info!("Reading config...");
     let config = read_config()?;
     let (tx, mut recv) = channel::<()>(1);
 
@@ -127,37 +122,30 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
 
         // Retrieve the last block number from where data should start being fetched from.
         info!("Reading state from disk");
-        let mut state = fs
-            .read_last_state()?
-            .map(|mut state| {
-                state.last_block += 1;
-                state
-            })
-            .unwrap_or(LatestInfo {
-                spec_version: 0,
-                last_block: 0,
-            });
+        let mut state = fs.read_last_state()?.unwrap_or(LatestInfo {
+            spec_version: 0,
+            last_block: 0,
+        });
 
         info!("Starting event loop");
         loop {
-            // Do not skip block 0 when starting at the beginning.
-            let from = if state.last_block == 0 {
-                state.last_block
-            } else {
-                state.last_block + 1
-            };
-
             // Set range of block numbers, do not exceed limit.
-            let to = latest.min(BLOCK_HASH_LIMIT);
+            let from = state.last_block;
+            let to = latest.min(state.last_block + BLOCK_HASH_LIMIT);
             let range = (from..=to).collect();
 
+            debug!("Requesting hashes of blocks from number {} to {}", from, to);
             let header_hashes =
                 get::<Vec<Vec<u64>>, Vec<String>>(&url, RpcMethod::BlockHash, vec![range]).await?;
 
             for hash in header_hashes {
+                trace!("Fetching runtime version from state {}", hash);
                 let version =
-                    get::<_, RuntimeVersion>(&url, RpcMethod::RuntimeVersion, hash.clone()).await?;
-                let metadata = get::<_, MetadataHex>(&url, RpcMethod::Metadata, hash).await?;
+                    get::<_, RuntimeVersion>(&url, RpcMethod::RuntimeVersion, vec![hash.clone()])
+                        .await?;
+
+                trace!("Fetching metadata from state {}", hash);
+                let metadata = get::<_, MetadataHex>(&url, RpcMethod::Metadata, vec![hash]).await?;
 
                 if version.spec_name != config.chain_name {
                     return Err(anyhow!(
@@ -175,21 +163,15 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
 
                     fs.save_runtime_metadata(&version, &metadata)?;
                 } else {
-                    debug!(
+                    trace!(
                         "No new version found at block {}, continuing",
                         version.spec_version
                     );
                 }
 
-                state.last_block += 1;
                 state.spec_version = version.spec_version;
-
                 fs.track_latest_state(&state)?;
-            }
-
-            // DEBUG MODE
-            if state.last_block == 10 {
-                return Ok(());
+                state.last_block += 1;
             }
 
             if latest < state.last_block {
@@ -285,8 +267,12 @@ struct LatestInfo {
     last_block: u64,
 }
 
+/// Handler to save the collected information to disk.
+struct Filesystem {
+    config: CollectorConfig,
+}
+
 impl Filesystem {
-    const LOCATION: &'static str = "/var/lib/metadata_collector";
     const STATE: &'static str = ".collection_state";
 
     fn new(config: CollectorConfig) -> Self {
@@ -294,13 +280,13 @@ impl Filesystem {
     }
     fn path(&self) -> String {
         format!(
-            "{}/{}/",
+            "{}/",
             self.config
                 .directory
                 .as_ref()
                 .map(|dir| dir.as_str())
-                .unwrap_or(Self::LOCATION),
-            self.config.chain_name
+                // Current 'pwd'.
+                .unwrap_or(""),
         )
     }
     fn save_runtime_metadata(

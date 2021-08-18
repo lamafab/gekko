@@ -2,13 +2,14 @@
 extern crate log;
 
 use anyhow::anyhow;
+use log::LevelFilter;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::fs::{File, read_to_string};
+use std::fs::{read_to_string, File};
 use std::io::prelude::*;
 use std::path::Path;
+use tokio::sync::mpsc::{channel, Sender};
 use tokio::time::{sleep, Duration};
-use tokio::sync::mpsc::{Sender, channel};
 
 const BLOCK_HASH_LIMIT: u64 = 50;
 const TIMEOUT: u64 = 10;
@@ -24,6 +25,7 @@ struct Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CollectorConfig {
     chain_name: String,
+    endpoint: String,
     directory: Option<String>,
 }
 
@@ -58,6 +60,19 @@ struct RpcResponse<T> {
     id: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcError {
+    pub jsonrpc: String,
+    pub error: Error,
+    pub id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Error {
+    pub code: i64,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Copy)]
 enum RpcMethod {
     Header,
@@ -82,6 +97,11 @@ fn read_config() -> Result<Config> {
 }
 
 pub async fn run() -> Result<()> {
+    info!("Reading config...");
+    env_logger::Builder::new()
+        .filter_module("system", LevelFilter::Debug)
+        .init();
+
     let config = read_config()?;
     let (tx, mut recv) = channel::<()>(1);
 
@@ -93,17 +113,20 @@ pub async fn run() -> Result<()> {
     // Wait for shutdown signal.
     recv.recv().await;
 
-    Err(anyhow!("Collector is shutting down unexpectedly"))
+    Err(anyhow!("service is shutting down unexpectedly"))
 }
 
 async fn do_run(tx: Sender<()>, config: CollectorConfig) {
     async fn local(config: CollectorConfig) -> Result<()> {
         let fs = Filesystem::new(config.clone());
+        let url = config.endpoint;
 
         // Fetch the latest known block number.
-        let mut latest = latest_block().await?;
+        info!("Fetching latest block number");
+        let mut latest = latest_block(&url).await?;
 
         // Retrieve the last block number from where data should start being fetched from.
+        info!("Reading state from disk");
         let mut state = fs
             .read_last_state()?
             .map(|mut state| {
@@ -115,6 +138,7 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
                 last_block: 0,
             });
 
+        info!("Starting event loop");
         loop {
             // Do not skip block 0 when starting at the beginning.
             let from = if state.last_block == 0 {
@@ -127,10 +151,13 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
             let to = latest.min(BLOCK_HASH_LIMIT);
             let range = (from..=to).collect();
 
-            let header_hashes = get::<Vec<u64>, Vec<String>>(RpcMethod::BlockHash, range).await?;
+            let header_hashes =
+                get::<Vec<Vec<u64>>, Vec<String>>(&url, RpcMethod::BlockHash, vec![range]).await?;
+
             for hash in header_hashes {
-                let version = get::<_, RuntimeVersion>(RpcMethod::RuntimeVersion, hash.clone()).await?;
-                let metadata = get::<_, MetadataHex>(RpcMethod::Metadata, hash).await?;
+                let version =
+                    get::<_, RuntimeVersion>(&url, RpcMethod::RuntimeVersion, hash.clone()).await?;
+                let metadata = get::<_, MetadataHex>(&url, RpcMethod::Metadata, hash).await?;
 
                 if version.spec_name != config.chain_name {
                     return Err(anyhow!(
@@ -160,9 +187,14 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
                 fs.track_latest_state(&state)?;
             }
 
+            // DEBUG MODE
+            if state.last_block == 10 {
+                return Ok(());
+            }
+
             if latest < state.last_block {
                 sleep(Duration::from_secs(TIMEOUT)).await;
-                latest = latest_block().await?;
+                latest = latest_block(&url).await?;
             }
         }
     }
@@ -177,11 +209,10 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
 }
 
 /// Convenience function for fetching the latest block number.
-async fn latest_block() -> Result<u64> {
-    get::<Option<()>, Header>(RpcMethod::Header, None)
-        .await?
-        .number
-        .parse()
+async fn latest_block(url: &str) -> Result<u64> {
+    get::<Option<()>, Header>(url, RpcMethod::Header, None)
+        .await
+        .and_then(|header| u64::from_str_radix(&header.number[2..], 16).map_err(|err| err.into()))
         .map_err(|err| anyhow::Error::from(err))
 }
 
@@ -219,18 +250,34 @@ struct RuntimeVersion {
 struct MetadataHex(String);
 
 /// Convenience function for executing a RPC call.
-async fn get<B: Serialize, R: DeserializeOwned>(method: RpcMethod, body: B) -> Result<R> {
+async fn get<B: Serialize, R: std::fmt::Debug + DeserializeOwned>(
+    url: &str,
+    method: RpcMethod,
+    body: B,
+) -> Result<R> {
     Client::new()
-        .post(method.as_str())
+        .post(url)
         .json(&RpcRequest::new(method, body))
         .send()
         .await?
-        .json::<RpcResponse<R>>()
+        .text()
         .await
-        .map(|res| res.result)
         .map_err(|err| err.into())
-}
+        .and_then(|data| {
+            let res = serde_json::from_str::<RpcResponse<R>>(&data);
 
+            if let Ok(ok) = res {
+                Ok(ok.result)
+            } else if let Ok(err) = serde_json::from_str::<RpcError>(&data) {
+                Err(anyhow!(
+                    "received error message from connected node: {:?}",
+                    err
+                ))
+            } else {
+                Err(res.unwrap_err().into())
+            }
+        })
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LatestInfo {

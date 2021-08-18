@@ -107,22 +107,26 @@
 //!
 //! A macro available in `gekko::generator` will parse the metadata
 //! automatically for you and generate the Rust interfaces at compile time.
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use runtime::*;
 
 #[cfg(feature = "dumps")]
+#[cfg_attr(docsrs, doc(cfg(feature = "dumps")))]
 /// Raw Kusama and Polkadot runtime metadata dumps.
 pub mod dumps {
     pub use gekko_metadata::*;
 }
 
 #[cfg(feature = "generator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "generator")))]
 /// Substrate runtime metadata generator for creating Rust interfaces.
 pub mod generator {
     pub use gekko_generator::*;
 }
 
 #[cfg(feature = "metadata")]
+#[cfg_attr(docsrs, doc(cfg(feature = "metadata")))]
 /// Utilities for parsing substrate runtime metadata.
 pub mod metadata {
     pub use gekko_metadata::*;

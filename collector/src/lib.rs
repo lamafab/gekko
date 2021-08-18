@@ -16,11 +16,14 @@ type Result<T> = std::result::Result<T, anyhow::Error>;
 
 // TODO
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct Config;
+pub struct Config {
+    collectors: Vec<CollectorConfig>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectorConfig {
     chain_name: String,
+    directory: Option<String>,
 }
 
 /// Handler to save the collected information to disk.
@@ -36,7 +39,15 @@ impl Filesystem {
         Filesystem { config: config }
     }
     fn path(&self) -> String {
-        format!("{}/{}/", Self::LOCATION, self.config.chain_name)
+        format!(
+            "{}/{}/",
+            self.config
+                .directory
+                .as_ref()
+                .map(|dir| dir.as_str())
+                .unwrap_or(Self::LOCATION),
+            self.config.chain_name
+        )
     }
     fn save_runtime_metadata(
         &self,
@@ -140,6 +151,13 @@ impl RpcMethod {
     }
 }
 
+pub async fn run(config: Config) {
+    for collector in config.collectors {
+        info!("Starting collector for {}", collector.chain_name);
+        tokio::spawn(local(collector));
+    }
+}
+
 pub async fn local(config: CollectorConfig) -> Result<()> {
     let fs = Filesystem::new(config.clone());
 
@@ -185,7 +203,7 @@ pub async fn local(config: CollectorConfig) -> Result<()> {
 
             if version.spec_version != state.spec_version {
                 info!(
-                    "Found new runtime version {} at block {}",
+                    "Found new runtime version {} at block {}, saving metadata...",
                     version.spec_version, state.last_block
                 );
 

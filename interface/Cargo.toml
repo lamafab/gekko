@@ -30,3 +30,8 @@ rand = "0.7"
 [features]
 generator = []
 metadata = [ "gekko-metadata" ]
+
+# docs.rs-specific configuration
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

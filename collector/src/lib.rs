@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use tokio::time::{sleep, Duration};
+use tokio::sync::mpsc::{Sender, channel};
 
 const BLOCK_HASH_LIMIT: u64 = 50;
 const TIMEOUT: u64 = 10;
@@ -152,82 +153,97 @@ impl RpcMethod {
 }
 
 pub async fn run(config: Config) {
+    let (tx, mut recv) = channel::<()>(1);
+
     for collector in config.collectors {
         info!("Starting collector for {}", collector.chain_name);
-        tokio::spawn(local(collector));
+        tokio::spawn(do_run(tx.clone(), collector));
     }
+
+    // Wait for shutdown signal.
+    recv.recv().await;
+
+    error!("Collector is shutting down unexpectedly");
 }
 
-pub async fn local(config: CollectorConfig) -> Result<()> {
-    let fs = Filesystem::new(config.clone());
+pub async fn do_run(tx: Sender<()>, config: CollectorConfig) {
+    async fn local(config: CollectorConfig) -> Result<()> {
+        let fs = Filesystem::new(config.clone());
 
-    // Fetch the latest known block number.
-    let mut latest = latest_block().await?;
+        // Fetch the latest known block number.
+        let mut latest = latest_block().await?;
 
-    // Retrieve the last block number from where data should start being fetched from.
-    let mut state = fs
-        .read_last_state()?
-        .map(|mut state| {
-            state.last_block += 1;
-            state
-        })
-        .unwrap_or(LatestInfo {
-            spec_version: 0,
-            last_block: 0,
-        });
+        // Retrieve the last block number from where data should start being fetched from.
+        let mut state = fs
+            .read_last_state()?
+            .map(|mut state| {
+                state.last_block += 1;
+                state
+            })
+            .unwrap_or(LatestInfo {
+                spec_version: 0,
+                last_block: 0,
+            });
 
-    loop {
-        // Do not skip block 0 when starting at the beginning.
-        let from = if state.last_block == 0 {
-            state.last_block
-        } else {
-            state.last_block + 1
-        };
-
-        // Set range of block numbers, do not exceed limit.
-        let to = latest.min(BLOCK_HASH_LIMIT);
-        let range = (from..=to).collect();
-
-        let header_hashes = get::<Vec<u64>, Vec<String>>(RpcMethod::BlockHash, range).await?;
-        for hash in header_hashes {
-            let version = get::<_, RuntimeVersion>(RpcMethod::RuntimeVersion, hash.clone()).await?;
-            let metadata = get::<_, MetadataHex>(RpcMethod::Metadata, hash).await?;
-
-            if version.spec_name != config.chain_name {
-                return Err(anyhow!(
-                    "Fetching data from the wrong chain, expected {}, got {}",
-                    config.chain_name,
-                    version.spec_name,
-                ));
-            }
-
-            if version.spec_version != state.spec_version {
-                info!(
-                    "Found new runtime version {} at block {}, saving metadata...",
-                    version.spec_version, state.last_block
-                );
-
-                fs.save_runtime_metadata(&version, &metadata)?;
+        loop {
+            // Do not skip block 0 when starting at the beginning.
+            let from = if state.last_block == 0 {
+                state.last_block
             } else {
-                debug!(
-                    "No new version found at block {}, continuing",
-                    version.spec_version
-                );
+                state.last_block + 1
+            };
+
+            // Set range of block numbers, do not exceed limit.
+            let to = latest.min(BLOCK_HASH_LIMIT);
+            let range = (from..=to).collect();
+
+            let header_hashes = get::<Vec<u64>, Vec<String>>(RpcMethod::BlockHash, range).await?;
+            for hash in header_hashes {
+                let version = get::<_, RuntimeVersion>(RpcMethod::RuntimeVersion, hash.clone()).await?;
+                let metadata = get::<_, MetadataHex>(RpcMethod::Metadata, hash).await?;
+
+                if version.spec_name != config.chain_name {
+                    return Err(anyhow!(
+                        "Fetching data from the wrong chain, expected {}, got {}",
+                        config.chain_name,
+                        version.spec_name,
+                    ));
+                }
+
+                if version.spec_version != state.spec_version {
+                    info!(
+                        "Found new runtime version {} at block {}, saving metadata...",
+                        version.spec_version, state.last_block
+                    );
+
+                    fs.save_runtime_metadata(&version, &metadata)?;
+                } else {
+                    debug!(
+                        "No new version found at block {}, continuing",
+                        version.spec_version
+                    );
+                }
+
+                state.last_block += 1;
+                state.spec_version = version.spec_version;
+
+                fs.track_latest_state(&state)?;
             }
 
-            state.last_block += 1;
-            state.spec_version = version.spec_version;
-
-            fs.track_latest_state(&state)?;
-        }
-
-        //fs.track_latest_state(state)?;
-
-        if latest < state.last_block {
-            sleep(Duration::from_secs(TIMEOUT)).await;
-            latest = latest_block().await?;
+            if latest < state.last_block {
+                sleep(Duration::from_secs(TIMEOUT)).await;
+                latest = latest_block().await?;
+            }
         }
     }
+
+    let name = config.chain_name.clone();
+    if let Err(err) = local(config).await {
+        error!("Error in {} collector: {:?}", name, err);
+    }
+
+    // Send shutdown signal.
+    let _ = tx.send(()).await.unwrap();
 }
 
 /// Convenience function for fetching the latest block number.

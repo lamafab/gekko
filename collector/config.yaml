@@ -1,0 +1,4 @@
+collectors:
+  - chain_name: kusama
+    endpoint: http://localhost:9933
+    directory: '/home/anon/Clones/gekko/collector/dump'

@@ -134,17 +134,28 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
             let to = latest.min(state.last_block + BLOCK_HASH_LIMIT);
             let range = (from..=to).collect();
 
-            debug!("Requesting hashes of blocks from number {} to {}", from, to);
+            debug!(
+                "{}: Requesting hashes of blocks from number {} to {}",
+                config.chain_name, from, to
+            );
             let header_hashes =
                 get::<Vec<Vec<u64>>, Vec<String>>(&url, RpcMethod::BlockHash, vec![range]).await?;
 
             for hash in header_hashes {
-                trace!("Fetching runtime version from state {}", hash);
+                trace!(
+                    "{}: Fetching runtime version from state {}",
+                    config.chain_name,
+                    hash
+                );
                 let version =
                     get::<_, RuntimeVersion>(&url, RpcMethod::RuntimeVersion, vec![hash.clone()])
                         .await?;
 
-                trace!("Fetching metadata from state {}", hash);
+                trace!(
+                    "{}: Fetching metadata from state {}",
+                    config.chain_name,
+                    hash
+                );
                 let metadata = get::<_, MetadataHex>(&url, RpcMethod::Metadata, vec![hash]).await?;
 
                 if version.spec_name != config.chain_name {
@@ -157,14 +168,15 @@ async fn do_run(tx: Sender<()>, config: CollectorConfig) {
 
                 if version.spec_version != state.spec_version {
                     info!(
-                        "Found new runtime version {} at block {}, saving metadata...",
-                        version.spec_version, state.last_block
+                        "{}: Found new runtime version {} at block {}, saving metadata...",
+                        config.chain_name, version.spec_version, state.last_block
                     );
 
                     fs.save_runtime_metadata(&version, &metadata)?;
                 } else {
                     trace!(
-                        "No new version found at block {}, continuing",
+                        "{}: No new version found at block {}, continuing",
+                        config.chain_name,
                         version.spec_version
                     );
                 }

@@ -4,7 +4,7 @@ extern crate log;
 use anyhow::anyhow;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::fs::File;
+use std::fs::{File, read_to_string};
 use std::io::prelude::*;
 use std::path::Path;
 use tokio::time::{sleep, Duration};
@@ -13,16 +13,16 @@ use tokio::sync::mpsc::{Sender, channel};
 const BLOCK_HASH_LIMIT: u64 = 50;
 const TIMEOUT: u64 = 10;
 
-type Result<T> = std::result::Result<T, anyhow::Error>;
+pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
 // TODO
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
+struct Config {
     collectors: Vec<CollectorConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CollectorConfig {
+struct CollectorConfig {
     chain_name: String,
     directory: Option<String>,
 }
@@ -32,87 +32,12 @@ struct Filesystem {
     config: CollectorConfig,
 }
 
-impl Filesystem {
-    const LOCATION: &'static str = "/var/lib/metadata_collector";
-    const STATE: &'static str = ".collection_state";
-
-    fn new(config: CollectorConfig) -> Self {
-        Filesystem { config: config }
-    }
-    fn path(&self) -> String {
-        format!(
-            "{}/{}/",
-            self.config
-                .directory
-                .as_ref()
-                .map(|dir| dir.as_str())
-                .unwrap_or(Self::LOCATION),
-            self.config.chain_name
-        )
-    }
-    fn save_runtime_metadata(
-        &self,
-        version: &RuntimeVersion,
-        metadata: &MetadataHex,
-    ) -> Result<()> {
-        // Save information about the runtime version.
-        let mut file = File::create(&format!(
-            "{}version_{}_{}.json",
-            self.path(),
-            version.spec_name,
-            version.spec_version
-        ))?;
-
-        file.write_all(serde_json::to_string(&version)?.as_bytes())?;
-        file.sync_all()?;
-
-        // Save the metadata of the runtime.
-        let mut file = File::create(&format!(
-            "{}metadata_{}_{}.hex",
-            self.path(),
-            version.spec_name,
-            version.spec_version
-        ))?;
-
-        file.write_all(metadata.0.as_bytes())?;
-        file.sync_all()?;
-
-        Ok(())
-    }
-    fn read_last_state(&self) -> Result<Option<LatestInfo>> {
-        let path = format!("{}{}", self.path(), Self::STATE);
-
-        if !Path::new(&path).exists() {
-            return Ok(None);
-        }
-
-        let mut file = File::open(&path)?;
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-
-        Ok(Some(serde_json::from_str(&contents)?))
-    }
-    fn track_latest_state(&self, state: &LatestInfo) -> Result<()> {
-        let mut file = File::create(&format!("{}{}", self.path(), Self::STATE))?;
-        file.write_all(serde_json::to_string_pretty(&state)?.as_bytes())?;
-        file.sync_all()?;
-
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LatestInfo {
-    spec_version: u64,
-    last_block: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RpcRequest<'a, T> {
-    pub id: i64,
-    pub jsonrpc: &'a str,
-    pub method: &'a str,
-    pub params: T,
+struct RpcRequest<'a, T> {
+    id: i64,
+    jsonrpc: &'a str,
+    method: &'a str,
+    params: T,
 }
 
 impl<'a, T> RpcRequest<'a, T> {
@@ -127,10 +52,10 @@ impl<'a, T> RpcRequest<'a, T> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RpcResponse<T> {
-    pub jsonrpc: String,
-    pub result: T,
-    pub id: i64,
+struct RpcResponse<T> {
+    jsonrpc: String,
+    result: T,
+    id: i64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -152,7 +77,12 @@ impl RpcMethod {
     }
 }
 
-pub async fn run(config: Config) {
+fn read_config() -> Result<Config> {
+    serde_yaml::from_str(&read_to_string("config.yaml")?).map_err(|err| err.into())
+}
+
+pub async fn run() -> Result<()> {
+    let config = read_config()?;
     let (tx, mut recv) = channel::<()>(1);
 
     for collector in config.collectors {
@@ -163,10 +93,10 @@ pub async fn run(config: Config) {
     // Wait for shutdown signal.
     recv.recv().await;
 
-    error!("Collector is shutting down unexpectedly");
+    Err(anyhow!("Collector is shutting down unexpectedly"))
 }
 
-pub async fn do_run(tx: Sender<()>, config: CollectorConfig) {
+async fn do_run(tx: Sender<()>, config: CollectorConfig) {
     async fn local(config: CollectorConfig) -> Result<()> {
         let fs = Filesystem::new(config.clone());
 
@@ -257,31 +187,31 @@ async fn latest_block() -> Result<u64> {
 
 /// Response when calling `chain_getHeader`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Header {
-    pub digest: serde_json::Value,
+struct Header {
+    digest: serde_json::Value,
     #[serde(rename = "extrinsicsRoot")]
-    pub extrinsics_root: String,
-    pub number: String,
+    extrinsics_root: String,
+    number: String,
     #[serde(rename = "parentHash")]
-    pub parent_hash: String,
+    parent_hash: String,
     #[serde(rename = "stateRoot")]
-    pub state_root: String,
+    state_root: String,
 }
 
 /// Response when calling `state_getRuntimeVersion`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuntimeVersion {
-    pub apis: Vec<(String, i64)>,
+struct RuntimeVersion {
+    apis: Vec<(String, i64)>,
     #[serde(rename = "authoringVersion")]
-    pub authoring_version: u64,
+    authoring_version: u64,
     #[serde(rename = "implName")]
-    pub impl_name: String,
+    impl_name: String,
     #[serde(rename = "implVersion")]
-    pub impl_version: u64,
+    impl_version: u64,
     #[serde(rename = "specName")]
-    pub spec_name: String,
+    spec_name: String,
     #[serde(rename = "specVersion")]
-    pub spec_version: u64,
+    spec_version: u64,
 }
 
 /// Response when calling `state_getMetadata`.
@@ -299,4 +229,80 @@ async fn get<B: Serialize, R: DeserializeOwned>(method: RpcMethod, body: B) -> R
         .await
         .map(|res| res.result)
         .map_err(|err| err.into())
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LatestInfo {
+    spec_version: u64,
+    last_block: u64,
+}
+
+impl Filesystem {
+    const LOCATION: &'static str = "/var/lib/metadata_collector";
+    const STATE: &'static str = ".collection_state";
+
+    fn new(config: CollectorConfig) -> Self {
+        Filesystem { config: config }
+    }
+    fn path(&self) -> String {
+        format!(
+            "{}/{}/",
+            self.config
+                .directory
+                .as_ref()
+                .map(|dir| dir.as_str())
+                .unwrap_or(Self::LOCATION),
+            self.config.chain_name
+        )
+    }
+    fn save_runtime_metadata(
+        &self,
+        version: &RuntimeVersion,
+        metadata: &MetadataHex,
+    ) -> Result<()> {
+        // Save information about the runtime version.
+        let mut file = File::create(&format!(
+            "{}version_{}_{}.json",
+            self.path(),
+            version.spec_name,
+            version.spec_version
+        ))?;
+
+        file.write_all(serde_json::to_string(&version)?.as_bytes())?;
+        file.sync_all()?;
+
+        // Save the metadata of the runtime.
+        let mut file = File::create(&format!(
+            "{}metadata_{}_{}.hex",
+            self.path(),
+            version.spec_name,
+            version.spec_version
+        ))?;
+
+        file.write_all(metadata.0.as_bytes())?;
+        file.sync_all()?;
+
+        Ok(())
+    }
+    fn read_last_state(&self) -> Result<Option<LatestInfo>> {
+        let path = format!("{}{}", self.path(), Self::STATE);
+
+        if !Path::new(&path).exists() {
+            return Ok(None);
+        }
+
+        let mut file = File::open(&path)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
+        Ok(Some(serde_json::from_str(&contents)?))
+    }
+    fn track_latest_state(&self, state: &LatestInfo) -> Result<()> {
+        let mut file = File::create(&format!("{}{}", self.path(), Self::STATE))?;
+        file.write_all(serde_json::to_string_pretty(&state)?.as_bytes())?;
+        file.sync_all()?;
+
+        Ok(())
+    }
 }

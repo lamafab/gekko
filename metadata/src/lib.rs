@@ -60,9 +60,64 @@ pub struct ExtrinsicInfo<'a> {
     pub documentation: Vec<&'a str>,
 }
 
+/// Parameters and other information about an individual storage entry.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct StorageInfo<'a> {
+    /// The name of the storage entry.
+    pub name: &'a str,
+    pub modifier: StorageEntryModifier,
+    pub ty: StorageEntryType,
+    /// Documentation of the storage entry, as provided by the Substrate metadata.
+    pub default: Option<&'a [u8]>,
+    pub documentation: Vec<&'a str>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum StorageEntryModifier {
+    Optional,
+    Default,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum StorageEntryType {
+    Plain(String),
+    Map {
+        hasher: Option<StorageHasher>,
+        key: String,
+        value: String,
+        unused: Option<bool>,
+        is_linked: Option<bool>,
+    },
+    DoubleMap {
+        hasher: Option<StorageHasher>,
+        key1: String,
+        key2: String,
+        value: String,
+        key2_hasher: Option<StorageHasher>,
+        is_linked: Option<bool>,
+    },
+    NMap {
+        keys: String,
+        hashers: Option<Vec<StorageHasher>>,
+        value: String,
+        is_linked: Option<bool>,
+    },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum StorageHasher {
+    Blake2_128,
+    Blake2_256,
+    Blake2_128Concat,
+    Twox128,
+    Twox256,
+    Twox64Concat,
+    Identity,
+}
+
 /// An interface to retrieve information about extrinsics on any Substrate
 /// metadata version.
-pub trait ModuleMetadataExt {
+pub trait ModuleBuilderExt {
     fn modules_extrinsics<'a>(&'a self) -> Vec<ExtrinsicInfo<'a>>;
     fn find_module_extrinsic<'a>(
         &'a self,
@@ -181,7 +236,7 @@ impl MetadataVersion {
             V13(_) => 13,
         }
     }
-    pub fn into_inner(self) -> impl ModuleMetadataExt {
+    pub fn into_inner(self) -> impl ModuleBuilderExt {
         match self {
             MetadataVersion::V13(m) => m,
             _ => panic!(),

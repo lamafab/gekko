@@ -1,4 +1,4 @@
-use crate::{ExtrinsicInfo, ModuleMetadataExt};
+use crate::{ExtrinsicInfo, ModuleBuilderExt};
 
 // TODO: Should implement Serialize/Deserialize.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -135,7 +135,7 @@ pub struct ExtrinsicMetadata {
     pub signed_extensions: Vec<String>,
 }
 
-impl ModuleMetadataExt for MetadataV13 {
+impl ModuleBuilderExt for MetadataV13 {
     fn modules_extrinsics<'a>(&'a self) -> Vec<ExtrinsicInfo<'a>> {
         self.modules
             .iter()

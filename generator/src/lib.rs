@@ -1,5 +1,5 @@
 use convert_case::{Case, Casing};
-use gekko_metadata::{parse_hex_metadata, ModuleMetadataExt};
+use gekko_metadata::{parse_hex_metadata, ModuleBuilderExt};
 use proc_macro::TokenTree;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};

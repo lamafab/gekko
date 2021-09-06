@@ -1,4 +1,4 @@
-use crate::{ExtrinsicInfo, ModuleBuilderExt};
+use crate::{ExtrinsicInfo, ModuleBuilderExt, StorageBuilderExt, StorageInfo};
 
 // TODO: Should implement Serialize/Deserialize.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -33,7 +33,7 @@ pub struct StorageEntryMetadata {
     pub documentation: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
 pub enum StorageEntryModifier {
     Optional,
     Default,
@@ -62,6 +62,50 @@ pub enum StorageEntryType {
     },
 }
 
+impl From<StorageEntryType> for crate::StorageEntryType {
+    fn from(val: StorageEntryType) -> Self {
+        match val {
+            StorageEntryType::Plain(s) => crate::StorageEntryType::Plain(s),
+            StorageEntryType::Map {
+                hasher,
+                key,
+                value,
+                unused,
+            } => crate::StorageEntryType::Map {
+                hasher: Some(hasher.into()),
+                key: key,
+                value: value,
+                unused: Some(unused),
+                is_linked: None,
+            },
+            StorageEntryType::DoubleMap {
+                hasher,
+                key1,
+                key2,
+                value,
+                key2_hasher,
+            } => crate::StorageEntryType::DoubleMap {
+                hasher: Some(hasher.into()),
+                key1: key1,
+                key2: key2,
+                value: value,
+                key2_hasher: Some(key2_hasher.into()),
+                is_linked: None,
+            },
+            StorageEntryType::NMap {
+                keys,
+                hashers,
+                value,
+            } => crate::StorageEntryType::NMap {
+                keys: keys,
+                hashers: Some(hashers.into_iter().map(|h| h.into()).collect()),
+                value: value,
+                is_linked: None,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum StorageHasher {
     Blake2_128,
@@ -71,6 +115,20 @@ pub enum StorageHasher {
     Twox256,
     Twox64Concat,
     Identity,
+}
+
+impl From<StorageHasher> for crate::StorageHasher {
+    fn from(val: StorageHasher) -> Self {
+        match val {
+            StorageHasher::Blake2_128 => crate::StorageHasher::Blake2_128,
+            StorageHasher::Blake2_256 => crate::StorageHasher::Blake2_256,
+            StorageHasher::Blake2_128Concat => crate::StorageHasher::Blake2_128Concat,
+            StorageHasher::Twox128 => crate::StorageHasher::Twox128,
+            StorageHasher::Twox256 => crate::StorageHasher::Twox256,
+            StorageHasher::Twox64Concat => crate::StorageHasher::Twox64Concat,
+            StorageHasher::Identity => crate::StorageHasher::Identity,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -189,3 +247,36 @@ impl ModuleBuilderExt for MetadataV13 {
             .and_then(|res| res?)
     }
 }
+
+/*
+impl StorageBuilderExt for MetadataV13 {
+    fn storage_entries<'a>(&'a self) -> Vec<StorageInfo<'a>> {
+        self.modules
+            .iter()
+            .map(|module| {
+                module
+                    .storage
+                    .map(|storage| {
+                        storage
+                            .entries
+                            .iter()
+                            .map(|entry| {
+                            StorageInfo {
+                                module_name: module.name.as_str(),
+                                entry_name: entry.name.as_str(),
+                                modifier: entry.modifier,
+                                ty: &entry.ty,
+                                default: Some(&entry.default),
+                                documentation: &entry.documentation,
+                            }
+                        })
+                    })
+            })
+            .flatten()
+            .collect()
+    }
+    fn find_storage_entries<'a>(&'a self, module: &str, name: &str) -> Option<StorageInfo<'a>> {
+        unimplemented!()
+    }
+}
+*/

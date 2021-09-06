@@ -63,13 +63,14 @@ pub struct ExtrinsicInfo<'a> {
 /// Parameters and other information about an individual storage entry.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct StorageInfo<'a> {
+    pub module_name: &'a str,
     /// The name of the storage entry.
-    pub name: &'a str,
+    pub entry_name: &'a str,
     pub modifier: StorageEntryModifier,
-    pub ty: StorageEntryType,
-    /// Documentation of the storage entry, as provided by the Substrate metadata.
+    pub ty: &'a StorageEntryType,
     pub default: Option<&'a [u8]>,
-    pub documentation: Vec<&'a str>,
+    /// Documentation of the storage entry, as provided by the Substrate metadata.
+    pub documentation: &'a [String],
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -124,6 +125,13 @@ pub trait ModuleBuilderExt {
         method: &str,
         extrinsic: &str,
     ) -> Option<ExtrinsicInfo<'a>>;
+}
+
+/// An interface to retrieve information about storage entries on any Substrate
+/// metadata version.
+pub trait StorageBuilderExt {
+    fn storage_entries<'a>(&'a self) -> Vec<StorageInfo<'a>>;
+    fn find_storage_entries<'a>(&'a self, module: &str, name: &str) -> Option<StorageInfo<'a>>;
 }
 
 /// Errors that can occur when parsing Substrate metadata.
